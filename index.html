@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tamura Machine List</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/parser.js"></script>
+</head>
+<body>
+
+<!-- ================= Login ================= -->
+<section class="auth" id="viewLogin" hidden>
+  <div class="auth-card">
+    <div class="brand"><span class="eyebrow">SPI · AOI · Review stations</span><h1 class="appName">Tamura Machine List</h1></div>
+    <form id="loginForm">
+      <label>Email<input id="loginEmail" type="email" autocomplete="username" required></label>
+      <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+      <div id="loginMsg" class="msg" hidden></div>
+      <button class="btn primary" type="submit" id="btnLogin">Log in</button>
+    </form>
+    <button class="linkbtn" type="button" id="btnForgot">Forgot password?</button>
+    <p class="help">Access is by invitation only. Ask an administrator for an account.</p>
+  </div>
+</section>
+
+<!-- ================= Forgot password ================= -->
+<section class="auth" id="viewForgot" hidden>
+  <div class="auth-card">
+    <h1>Reset password</h1>
+    <form id="forgotForm">
+      <label>Email<input id="forgotEmail" type="email" autocomplete="username" required></label>
+      <div id="forgotMsg" class="msg" hidden></div>
+      <button class="btn primary" type="submit">Send reset link</button>
+    </form>
+    <button class="linkbtn" type="button" id="btnBackLogin">Back to log in</button>
+  </div>
+</section>
+
+<!-- ================= Set password (invite / reset link) ================= -->
+<section class="auth" id="viewSetPassword" hidden>
+  <div class="auth-card">
+    <h1>Set your password</h1>
+    <p class="help" id="setPwEmail"></p>
+    <form id="setPwForm">
+      <label>New password<input id="newPw" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label>Repeat password<input id="newPw2" type="password" autocomplete="new-password" minlength="8" required></label>
+      <div id="setPwMsg" class="msg" hidden></div>
+      <button class="btn primary" type="submit">Save password</button>
+    </form>
+  </div>
+</section>
+
+<!-- ================= Waiting for approval ================= -->
+<section class="auth" id="viewPending" hidden>
+  <div class="auth-card">
+    <h1>Waiting for approval</h1>
+    <p class="help">You are logged in as <strong id="pendingEmail"></strong>, but an administrator still has to give you access. Try again once they have.</p>
+    <div class="actions"><button class="btn" type="button" id="btnRecheck">Check again</button><button class="btn" type="button" data-logout>Log out</button></div>
+  </div>
+</section>
+
+<!-- ================= Setup missing ================= -->
+<section class="auth" id="viewSetup" hidden>
+  <div class="auth-card">
+    <h1>Setup needed</h1>
+    <p class="help">Open <span class="mono">js/config.js</span> and fill in your Supabase project URL and anon key. The README explains where to find them.</p>
+  </div>
+</section>
+
+<!-- ================= Main app ================= -->
+<div class="wrap" id="viewApp" hidden>
+  <header class="top">
+    <div class="brand">
+      <span class="eyebrow">SPI · AOI · Review stations</span>
+      <h1 class="appName">Tamura Machine List</h1>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btnUsers" type="button" data-admin>Users</button>
+      <button class="btn" id="btnTemplate" type="button" data-admin title="Download an empty Excel template">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg><span class="l">Template</span></button>
+      <button class="btn" id="btnExport" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg><span class="l">Export Excel</span></button>
+      <button class="btn" id="btnImport" type="button" data-admin>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 3h16"/></svg><span class="l">Upload Excel</span></button>
+      <button class="btn primary" id="btnAdd" type="button" data-admin>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add machine</button>
+    </div>
+  </header>
+  <div class="userbox"><span id="userEmail"></span><span class="role" id="userRole"></span><button class="linkbtn" type="button" data-logout>Log out</button></div>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="summary" aria-label="Calibration summary">
+    <button class="stat" type="button" data-cal=""><span class="k">Machines</span><span class="v" id="sTotal">–</span></button>
+    <button class="stat bad" type="button" data-cal="overdue"><span class="k"><span class="dot" style="background:var(--bad)"></span>Calibration overdue</span><span class="v" id="sOver">–</span></button>
+    <button class="stat warn" type="button" data-cal="due"><span class="k"><span class="dot" style="background:var(--warn)"></span>Due in 30 days</span><span class="v" id="sDue">–</span></button>
+    <button class="stat" type="button" data-cal="none"><span class="k"><span class="dot" style="background:var(--muted)"></span>No calibration date</span><span class="v" id="sNone">–</span></button>
+  </section>
+
+  <nav class="tabs" id="tabs" aria-label="Customers"></nav>
+
+  <div class="filters">
+    <input type="search" id="q" placeholder="Search serial, line, version, IP, PC model…" aria-label="Search">
+    <select id="fKind" aria-label="Machine kind"><option value="">All kinds</option></select>
+    <select id="fCal" aria-label="Calibration status">
+      <option value="">Any calibration status</option>
+      <option value="overdue">Overdue</option>
+      <option value="due">Due in 30 days</option>
+      <option value="ok">Up to date</option>
+      <option value="none">No date</option>
+    </select>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="tablebox">
+    <table id="grid">
+      <thead><tr>
+        <th data-sort="customer">Customer</th>
+        <th data-sort="kind">Kind / Model</th>
+        <th data-sort="line">Line</th>
+        <th data-sort="serial">Serial number</th>
+        <th data-sort="mfg">Mfg</th>
+        <th data-sort="version">Version</th>
+        <th data-sort="lastCal">Last cal.</th>
+        <th data-sort="nextCal">Next cal.</th>
+        <th data-sort="ip">IP address</th>
+        <th data-sort="pcModel">PC specifications</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden>
+      <strong id="emptyTitle">Loading machines…</strong>
+      <span id="emptyText">The machine list appears here once it loads.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Edit / add dialog -->
+<dialog id="dlgEdit" aria-labelledby="editTitle">
+  <form class="dlg" id="editForm" method="dialog">
+    <div class="dlg-head"><h2 id="editTitle">Add machine</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <fieldset><legend>Machine</legend>
+        <label><span class="req">Customer</span><input id="e_customer" list="custList" required autocomplete="off"></label>
+        <label><span class="req">Kind</span><input id="e_kind" list="kindList" required autocomplete="off" placeholder="SPI, AOI, Review…"></label>
+        <label>Model<input id="e_model" placeholder="KY8030 Nova, Zenith Alpha…"></label>
+        <label>Line<input id="e_line"></label>
+        <label>Serial number<input id="e_serial" class="mono" placeholder="SS-SL-00000"></label>
+        <label>Manufactured (month)<input id="e_mfg" type="month"></label>
+        <label>Location<input id="e_location"></label>
+      </fieldset>
+      <fieldset><legend>Software &amp; calibration</legend>
+        <label>Current version<input id="e_version" class="mono"></label>
+        <label>Last calibration<input id="e_lastCal" type="date"></label>
+        <label>Next calibration<input id="e_nextCal" type="date"></label>
+        <label>Checked by<input id="e_checkBy"></label>
+      </fieldset>
+      <fieldset><legend>PC specifications</legend>
+        <label>IP address<input id="e_ip" class="mono" placeholder="192.168.0.10"></label>
+        <label>OS<input id="e_os" list="osList"></label>
+        <label>PC model<input id="e_pcModel"></label>
+        <label>Memory<input id="e_memory" placeholder="16384 MB"></label>
+        <label>VGA<input id="e_vga"></label>
+      </fieldset>
+      <fieldset><legend>Notes</legend>
+        <label class="wide">Notes<textarea id="e_notes" rows="2" placeholder="e.g. Need new mirror"></textarea></label>
+      </fieldset>
+      <p class="help" id="editMeta"></p>
+    </div>
+    <div class="dlg-foot">
+      <div id="delArea"></div>
+      <div class="r">
+        <button class="btn" type="button" data-close>Close</button>
+        <button class="btn primary" type="submit" id="btnSave">Save machine</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Import dialog -->
+<dialog id="dlgImport" aria-labelledby="impTitle">
+  <div class="dlg">
+    <div class="dlg-head"><h2 id="impTitle">Upload Excel</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <div class="drop" id="drop">
+        <strong>Drop an .xlsx file here</strong>
+        <span class="help">Each sheet is read as one customer. Headers like <span class="mono">Serial Number</span>, <span class="mono">Line</span>, <span class="mono">Last calibration</span>, <span class="mono">IP Address</span> and the PC specification columns are recognised automatically, including two-row headers.</span>
+        <label class="btn" style="flex-direction:row;color:var(--fg);font-size:14px">Choose file<input type="file" id="file" accept=".xlsx,.xls,.xlsm,.csv" hidden></label>
+      </div>
+      <div id="impPreview" class="preview" hidden></div>
+    </div>
+    <div class="dlg-foot">
+      <span class="help" id="impStatus"></span>
+      <div class="r">
+        <button class="btn" type="button" data-close>Cancel</button>
+        <button class="btn primary" type="button" id="btnDoImport" disabled>Import</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Users dialog (admins) -->
+<dialog id="dlgUsers" aria-labelledby="usersTitle">
+  <div class="dlg">
+    <div class="dlg-head"><h2 id="usersTitle">Users</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <p class="help">To add someone, invite them by email in Supabase (Authentication → Users → Invite user). They appear here as <strong>pending</strong>; give them a role to let them in.</p>
+      <div class="tablebox users"><table style="min-width:420px"><thead><tr><th>Email</th><th>Role</th><th>Since</th></tr></thead><tbody id="usersRows"></tbody></table></div>
+    </div>
+    <div class="dlg-foot"><span class="help" id="usersStatus"></span><div class="r"><button class="btn" type="button" data-close>Close</button></div></div>
+  </div>
+</dialog>
+
+<datalist id="custList"></datalist><datalist id="kindList"></datalist><datalist id="osList"></datalist>
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

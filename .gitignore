@@ -1,0 +1,6 @@
+# Never commit real machine data or exports — the repo may be public
+*.xlsx
+*.xls
+*.csv
+supabase/seed*.sql
+.DS_Store
