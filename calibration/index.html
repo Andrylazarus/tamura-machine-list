@@ -824,6 +824,7 @@ function genConclusion(){const p=S.spec,tol=p.jigH*p.jigTol/100,L=[];
   S.after.rows.slice(0,S.channels).forEach((r,i)=>{const a=num(r.vis),b=num(S.before.rows[i]&&S.before.rows[i].vis);
     if(a!==null&&b!==null&&b-a>=0.05&&chk("vis",r.vis)!==false)L.push(`Visibility CH${i+1} changed from ${b} to ${a} after calibration and remains above the ${p.vis} limit.`)});
   const hb=heightStats(S.before.height),ha=heightStats(S.after.height);
+  if(hb&&!hb.ok){const bad=S.before.height.filter(v=>chk("h",v)===false).length;L.push(`Height check before calibration was out of tolerance at ${bad} of ${hb.n} points (maximum deviation ${hb.maxAbs.toFixed(2)} µm).`)}
   if(ha)L.push(`Height accuracy after calibration: average ${ha.mean.toFixed(2)} µm against the ${p.jigH} µm reference jig (tolerance ±${tol.toFixed(2)} µm), maximum deviation ${ha.maxAbs.toFixed(2)} µm${hb?` (before: average ${hb.mean.toFixed(2)} µm, maximum deviation ${hb.maxAbs.toFixed(2)} µm)`:""}; ${ha.ok?"within tolerance":"out of tolerance"}.`);
   const V=S.verifyOn&&S.verify;if(V){const cb=minCmk(V.before),ca=minCmk(V.after);
     if(ca!==null)L.push(`Machine verification (KYCal): height ${V.after.sum?V.after.sum.result:""} after calibration with minimum CMK ${ca.toFixed(2)}${cb!==null?` (before: ${cb.toFixed(2)})`:""}, showing ${cb!==null&&ca>cb?"improved":"stable"} measurement repeatability.`)}
