@@ -632,7 +632,7 @@ function buildForm(){
   const ed=document.getElementById("editor");const sc=ed.scrollTop;
   ed.querySelectorAll("details.sec").forEach(d=>{const id=d.id.slice(4);d.open?openSecs.add(id):openSecs.delete(id)});
   const bs=tableStats(S.before),as=tableStats(S.after);
-  ed.innerHTML=`<p class="hint"><b>Import folder</b> fills the report from the machine files (BRIGHT, 3D, HEIGHT .txt, graphs 1–7, CH1…, mirror / probe photos or zips in Before / After, and VerifyReport.html). Your work saves automatically in this browser. Use <b>Save data</b> to keep a copy of each report, and <b>Print / PDF</b> to export. PASS / FAIL and out-of-spec values are marked automatically.</p>`+
+  ed.innerHTML=`<p class="hint"><b>Import folder</b> fills the report from the machine files (BRIGHT, 3D, HEIGHT .txt, graphs 1–7, CH1…, mirror / probe photos or zips in Before / After, Glass-before / Glass-after for the AOI probe cover glass, and VerifyReport.html). Your work saves automatically in this browser. Use <b>Save data</b> to keep a copy of each report, and <b>Print / PDF</b> to export. PASS / FAIL and out-of-spec values are marked automatically.</p>`+
   sec("info","Report & visit",`<label class="f">Report style<select id="in-style" data-k="style">${[["a","A · Modern blue"],["b","B · Formal black & white"],["c","C · Tamura red, numbered sections"]].map(([v,l])=>`<option value="${v}" ${(S.style||"a")===v?"selected":""}>${l}</option>`).join("")}</select></label><div class="row"><label class="f">Report No<span class="inline"><input id="in-reportNo" data-k="reportNo" value="${esc(S.reportNo)}" placeholder="026/TTI-AL/IX/26"><button class="btn sm" type="button" id="btn-gen" title="Build number from date">Auto</button></span></label>${inp("date","Report date",{type:"date"})}</div>
     ${inp("subject","Subject")}
     <div class="sub">Call description</div><div class="checks">${CALL_TYPES.map((c,i)=>`<label><input type="checkbox" id="ct-${i}" data-ct="${c}" ${S.callTypes.includes(c)?"checked":""}>${c}</label>`).join("")}</div>
@@ -769,14 +769,16 @@ async function importEntries(entries){const notes=[];entries=await expandZips(en
     if(!root&&segs.length>1)root=segs[0];
     if(/verifyreport\.html?$/i.test(name)){reports.push(parseVerify(await e.blob.text()));continue}
     const dir=segs.slice(0,-1).join("/").toLowerCase();const si=segs.findIndex((s,i)=>i<segs.length-1&&/before|after/i.test(s));
-    const sg=si<0?null:/before/i.test(segs[si])?"before":"after";if(!sg)continue;const T=st[sg];const rel=segs.slice(si+1).join("/").replace(/\.[^.]+$/,"").toLowerCase();
+    let sg=si<0?null:/before/i.test(segs[si])?"before":"after";let rel=segs.slice(si+1).join("/").replace(/\.[^.]+$/,"").toLowerCase();
+    if(!sg&&/\.(png|jpe?g|bmp|gif|webp)$/i.test(name)&&/glass|mirror|probe/i.test(p)){const m=name.match(/before|after/i);if(m){sg=m[0].toLowerCase();rel=segs.join("/").replace(/\.[^.]+$/,"").toLowerCase()}}
+    if(!sg)continue;const T=st[sg];
     if(/\.txt$/i.test(name)){const tx=await e.blob.text();
       if(/bright/i.test(name))T.bright=tx;else if(/height/i.test(name))T.height=tx;else if(/^3d/i.test(name)||/3d\s*check/i.test(dir))T.d3=tx}
     else if(/\.(png|jpe?g|bmp|gif|webp)$/i.test(name))T.imgs.push({base:name.replace(/\.[^.]+$/,""),name,rel,blob:e.blob})}
   if(!st.before.bright&&!st.after.bright&&!st.before.d3&&!st.after.d3&&!st.before.height&&!st.after.height)
     throw new Error("No Before / After folders with BRIGHT, 3D or HEIGHT .txt files were found.");
   const keep={sig:S.sig,engineer:S.engineer,attendedBy:S.attendedBy,style:S.style,spec:{...S.spec},view:S.view,cert:{...S.cert,date:""}};
-  const N=normalize(Object.assign(blank(),keep));let maxN=0;const bad={};const mirrors={before:[],after:[]},probes={before:[],after:[]};
+  const N=normalize(Object.assign(blank(),keep));let maxN=0;const bad={};const mirrors={before:[],after:[]},probes={before:[],after:[]},glass={before:[],after:[]};
   for(const sg of["before","after"]){const T=st[sg],tg=N[sg];
     const b=T.bright?parseBright(T.bright):null,z=T.d3?parse3D(T.d3):null,h=T.height?parseHeight(T.height):null;
     const n3=Math.max(b?b.d3.length:0,z?z.length:0);const n=n3||(b?b.d2.length:0);maxN=Math.max(maxN,n);
@@ -790,11 +792,11 @@ async function importEntries(entries){const notes=[];entries=await expandZips(en
     for(const im of T.imgs){const lb=im.base.toLowerCase();let url;try{url=await blobToDataURL(im.blob,1400,im.name)}catch(e){(bad[sg]=bad[sg]||[]).push(im.name);continue}
       if(/^\d+$/.test(lb)){const k=+lb;if(k===7)tg.h3d=url;else if(k in GRAPH_FILE)tg.graphs[GRAPH_FILE[k]]=url}
       else if(/^ch\s*0*(\d+)$/.test(lb)){const k=+lb.match(/(\d+)/)[1]-1;while(N.chShots.length<=k)N.chShots.push({b:"",a:""});N.chShots[k][sg==="before"?"b":"a"]=url}
-      else if(/mirror/.test(im.rel))mirrors[sg].push(url);else if(/probe/.test(im.rel))probes[sg].push(url)}}
+      else if(/glass/.test(im.rel))glass[sg].push(url);else if(/mirror/.test(im.rel))mirrors[sg].push(url);else if(/probe/.test(im.rel))probes[sg].push(url)}}
   for(const [sg,l] of Object.entries(bad))notes.push(`${sg}: ${l.length} image${l.length>1?"s":""} could not be read (${l.slice(0,3).join(", ")}${l.length>3?", …":""})`);
   N.channels=Math.max(1,maxN||S.channels);
   const pairs=(m,title)=>{const n=Math.max(m.before.length,m.after.length);return n?{title,layout:"pair",items:Array.from({length:n},(_,i)=>({b:m.before[i]||"",a:m.after[i]||"",cap:""}))}:null};
-  N.photoSections=[pairs(mirrors,"Mirror modules – before / after cleaning"),pairs(probes,"Probe – before / after cleaning")].filter(Boolean);
+  N.photoSections=[pairs(mirrors,"Mirror modules – before / after cleaning"),pairs(glass,"Probe cover glass – before / after cleaning"),pairs(probes,"Probe – before / after cleaning")].filter(Boolean);
   if(!N.photoSections.length)N.photoSections=[];
   const m=root.match(/[A-Z]{2}-[A-Z]{2}-\d{3,6}/i);if(m)N.serial=m[0].toUpperCase();
   reports.sort((x,y)=>(x.date+x.time).localeCompare(y.date+y.time));
