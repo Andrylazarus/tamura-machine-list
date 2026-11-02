@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
+<script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+<script src="../js/config.js"></script>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Transport Claim Report</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column of day cards like a trip log, sticky total bar at the bottom; toll-sign green accent */
+:root{
+  --bg:#eef2f0; --card:#ffffff; --fg:#17211d; --muted:#5d6b65; --line:#d3ddd8; --soft:#e4ebe7;
+  --accent:#0d6b4c; --accent-fg:#ffffff; --accent-soft:#dcefe6; --warn:#b4471f; --sign:#0d6b4c;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101614; --card:#18201d; --fg:#e4ece8; --muted:#94a39c; --line:#2c3833; --soft:#212b27;
+  --accent:#3fb489; --accent-fg:#06140e; --accent-soft:#1c3529; --warn:#f08a62; --sign:#1f7a59; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101614; --card:#18201d; --fg:#e4ece8; --muted:#94a39c; --line:#2c3833; --soft:#212b27;
+  --accent:#3fb489; --accent-fg:#06140e; --accent-soft:#1c3529; --warn:#f08a62; --sign:#1f7a59; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 0}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.01em;margin:0;text-wrap:balance}
+header.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.sign{background:var(--sign);color:#fff;border-radius:6px;padding:8px 14px 6px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.55),0 0 0 2px var(--sign)}
+.sign h1{font-size:28px;line-height:1}
+.sign .wk{font-family:var(--display);font-weight:500;font-size:18px;opacity:.9}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.status{font-size:12px;color:var(--muted);min-width:70px}
+.banner{background:var(--accent-soft);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+.banner.err{color:var(--warn)}
+input,select,button{font:inherit;color:inherit}
+input,select{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0;width:100%}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--card);padding:7px 12px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+button.ghost{background:transparent;border-color:transparent;color:var(--accent);padding:4px 6px;font-weight:500}
+button.x{background:transparent;border:none;color:var(--muted);padding:4px 8px;font-size:18px;line-height:1}
+button.x:hover{color:var(--warn)}
+button.danger{color:var(--warn)}
+select.weeksel{width:auto;min-width:170px}
+.days{display:flex;flex-direction:column;gap:14px}
+.day{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.dayhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-bottom:1px solid var(--line)}
+.dayhead h3{font-size:22px}
+.dayhead .meta{display:flex;gap:14px;font-size:13px;color:var(--muted);align-items:center;flex-wrap:wrap}
+.dayhead .meta b{color:var(--fg);font-family:var(--mono);font-weight:500}
+.daybody{padding:12px 14px;display:grid;gap:12px}
+.grid2{display:grid;grid-template-columns:150px 1fr;gap:8px}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;display:block}
+.jobs{display:grid;gap:6px}
+.jobrow{display:flex;gap:4px}
+.trip{display:grid;gap:6px;border-left:3px solid var(--accent-soft);padding-left:10px}
+.point{display:grid;grid-template-columns:70px 120px 1fr;gap:8px;align-items:center}
+.point .tag{font-family:var(--display);font-weight:600;font-size:16px;color:var(--accent);text-transform:uppercase}
+.leg{display:grid;grid-template-columns:1fr 130px 1fr auto;gap:6px;align-items:center}
+.amt{position:relative}
+.amt span{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none}
+.amt input{padding-left:30px;text-align:right}
+.tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{border-radius:999px;padding:4px 11px;font-size:13px;background:var(--accent-soft);border-color:transparent}
+.routes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.rbtn{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--card)}
+.rbtn b{font-family:var(--display);font-size:18px;font-weight:600;line-height:1.1}
+.rbtn small{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.rbtn.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.rbtn.on small{color:var(--accent-fg);opacity:.85}
+.fill{width:auto;max-width:100%;font-size:13px;padding:5px 8px}
+.saveroute{display:flex;gap:6px;flex-wrap:wrap}
+.saveroute input{width:200px}
+.addday{align-self:flex-start}
+.bar{position:sticky;bottom:0;margin-top:18px;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -6px 16px rgba(0,0,0,.06);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bar .in{max-width:860px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.tot{display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+.tot .big{font-family:var(--mono);font-size:22px;font-weight:500}
+.tot small{color:var(--muted);font-size:12px;display:block}
+.msg{font-size:13px;color:var(--muted);width:100%}
+details.extra{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:14px}
+details.extra summary{cursor:pointer;padding:12px 14px;font-family:var(--display);font-weight:600;font-size:20px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+details.extra summary small{font-family:var(--body);font-size:13px;color:var(--muted);font-weight:400}
+.xbody{padding:0 14px 14px;display:grid;gap:8px}
+.xscroll{overflow-x:auto}
+table.x{border-collapse:collapse;width:100%;min-width:560px}
+table.x th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:500;padding:4px}
+table.x td{padding:3px 4px;vertical-align:middle}
+.pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;white-space:nowrap}
+.pill.ok{background:var(--accent-soft);color:var(--accent)}
+.pill.used{background:var(--soft);color:var(--muted)}
+.empty{text-align:center;padding:40px 16px;background:var(--card);border:1px dashed var(--line);border-radius:10px}
+.empty p{color:var(--muted)}
+@media (max-width:620px){
+  .grid2{grid-template-columns:1fr}
+  .point{grid-template-columns:56px 1fr 1fr}
+  .leg{grid-template-columns:1fr 120px auto}
+  .leg .rem{grid-column:1 / 3}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="sign"><h1>Transport Claim</h1><div class="wk" id="wkLabel">Loading…</div></div>
+    <div class="controls">
+      <select id="weekSel" class="weeksel" aria-label="Choose week"></select>
+      <select id="newWeek" class="weeksel" aria-label="Add a week"></select>
+      <button id="delWeek" class="danger">Delete week</button>
+      <button id="backupBtn" title="Save all your data to a file">Backup</button>
+      <button id="restoreBtn" title="Load data from a backup file">Restore</button>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+      <span class="status" id="status"></span>
+    </div>
+  </header>
+  <div id="banner"></div>
+  <main id="main"><div class="empty"><p>Loading your reports…</p></div></main>
+
+  <details class="extra" id="extraBox">
+    <summary><span>Notes at the bottom of the report</span><small id="extraSum"></small></summary>
+    <div class="xbody">
+      <div class="grid2" style="grid-template-columns:150px 1fr"><div><label class="lbl" for="noteYear">Note (year)</label><input id="noteYear" class="num"></div></div>
+      <h3 style="font-size:19px;margin-top:6px">Replacement day count</h3>
+      <div class="xscroll"><table class="x"><thead><tr><th>Day worked</th><th>Job</th><th>Used on</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody id="xRep"></tbody></table></div>
+      <button class="ghost" data-xadd="replacement" style="justify-self:start">+ Add replacement day</button>
+      <h3 style="font-size:19px;margin-top:6px">Calibration claim</h3>
+      <div class="xscroll"><table class="x"><thead><tr><th>Customer</th><th>Job</th><th>Date</th><th>Remarks</th><th>Amount</th><th></th></tr></thead><tbody id="xCal"></tbody></table></div>
+      <button class="ghost" data-xadd="calibration" style="justify-self:start">+ Add calibration claim</button>
+      <h3 style="font-size:19px;margin-top:6px">Tamura claim</h3>
+      <div class="xscroll"><table class="x"><thead><tr><th>Customer</th><th>Details</th><th>Amount</th><th></th></tr></thead><tbody id="xTam"></tbody></table></div>
+      <button class="ghost" data-xadd="tamura" style="justify-self:start">+ Add Tamura claim</button>
+    </div>
+  </details>
+  <details class="extra" id="routeBox">
+    <summary><span>Saved toll routes</span><small id="routeSum"></small></summary>
+    <div class="xbody">
+      <p style="margin:0;font-size:13px;color:var(--muted)">To add a route, fill in a day's tolls and tap <b>Save as route</b>. Change a name or price here; it applies the next time you tap the route.</p>
+      <div id="routeList" style="display:grid;gap:10px"></div>
+    </div>
+  </details>
+  <div style="height:8px"></div>
+</div>
+<div class="bar"><div class="in">
+  <div class="tot">
+    <div><small>Week total</small><span class="big" id="weekTotal">Rp 0</span></div>
+    <div><small>Distance</small><span class="num" id="weekKm">0 km</span></div>
+    <div><small>Days</small><span class="num" id="weekDays">0</span></div>
+  </div>
+  <div class="controls">
+    <button id="copyBtn">Copy table</button>
+    <button id="exportBtn" class="primary">Download .xlsx</button>
+  </div>
+  <div class="msg" id="msg" hidden></div>
+</div></div>
+
+<style>
+.gate{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.gate-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:26px 24px;width:min(380px,100%);display:grid;gap:14px}
+.gate-card h1{font-size:26px}
+.gate-card form{display:grid;gap:12px}
+.gate-card label{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:500}
+.gate-card a{color:var(--accent)}
+.gate-msg{margin:0;font-size:13px;color:var(--warn)}
+.gate-hint{margin:0;font-size:12px;color:var(--muted)}
+.who{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.who a{color:var(--accent)}
+</style>
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <h1>Transport Claim</h1>
+    <form id="gate-login" hidden>
+      <label>Email<input id="g-email" type="email" autocomplete="username" required></label>
+      <label>Password<input id="g-pass" type="password" autocomplete="current-password" required></label>
+      <button class="primary" id="g-btn" type="submit">Log in</button>
+    </form>
+    <div id="gate-pending" hidden><p style="margin:0 0 10px">Your account is waiting for approval. Ask an administrator to set your role to viewer or admin in Machine List → Users.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="g-again" type="button">Check again</button><button id="g-out" type="button">Log out</button></div></div>
+    <p class="gate-msg" id="gate-msg" hidden></p>
+    <p class="gate-hint">Use the same account as Tamura Machine List. First time, or forgot your password? <a href="../">Set it on the Machine List page</a>.</p>
+  </div>
+</div>
+<script>
+/* Supabase login + per-user storage for the transport claim page (table: transport_docs) */
+window.TC_CLOUD=(function(){
+  const T='transport_docs';let sb=null,me=null,resolve;
+  const ready=new Promise(r=>resolve=r);
+  const $=id=>document.getElementById(id);
+  function gate(mode,msg){$('gate').hidden=false;$('gate-login').hidden=mode!=='login';$('gate-pending').hidden=mode!=='pending';
+    const m=$('gate-msg');m.hidden=!msg;m.textContent=msg||''}
+  async function enter(user){
+    me=user;
+    const p=await sb.from('profiles').select('role,email').eq('id',user.id).maybeSingle();
+    if(p.error){gate('login','Could not check your account: '+p.error.message);return}
+    const role=p.data&&p.data.role;
+    if(role!=='admin'&&role!=='viewer'){gate('pending');return}
+    const r=await sb.from(T).select('key,data').eq('user_id',user.id);
+    if(r.error){gate('login',/relation|does not exist|schema cache/i.test(r.error.message)?'The transport claim table is not set up yet. Run supabase/transport.sql once in the Supabase SQL Editor.':'Could not load your data: '+r.error.message);return}
+    const out={};(r.data||[]).forEach(x=>out[x.key]=x.data);
+    $('gate').hidden=true;
+    const c=document.querySelector('header.top .controls');
+    if(c&&!$('who')){const w=document.createElement('span');w.className='who';w.id='who';
+      w.innerHTML='<span></span><a href="../">Machine List</a><button type="button" id="btn-logout">Log out</button>';
+      w.firstChild.textContent=user.email;c.appendChild(w);$('btn-logout').onclick=logout}
+    resolve(out);
+  }
+  async function logout(){try{await sb.auth.signOut()}catch(e){}location.reload()}
+  function start(){
+    if(!window.supabase||!window.supabase.createClient||!window.APP_CONFIG){gate('login','The login service did not load. Check your internet connection and reload the page.');return}
+    sb=window.supabase.createClient(APP_CONFIG.SUPABASE_URL,APP_CONFIG.SUPABASE_ANON_KEY);
+    gate('login');
+    sb.auth.getSession().then(r=>{const s=r.data&&r.data.session;if(s&&s.user&&!me)enter(s.user)});
+    $('gate-login').addEventListener('submit',async e=>{e.preventDefault();const b=$('g-btn');b.disabled=true;
+      const r=await sb.auth.signInWithPassword({email:$('g-email').value.trim(),password:$('g-pass').value});
+      b.disabled=false;if(r.error)gate('login',r.error.message==='Invalid login credentials'?'Wrong email or password.':r.error.message);else enter(r.data.user)});
+    $('g-again').onclick=()=>me&&enter(me);$('g-out').onclick=logout;
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+  return{
+    load:()=>ready,
+    write:(key,data)=>sb.from(T).upsert({user_id:me.id,key,data,updated_at:new Date().toISOString()}).then(r=>{if(r.error)throw r.error}),
+    remove:key=>sb.from(T).delete().eq('user_id',me.id).eq('key',key).then(r=>{if(r.error)throw r.error})
+  };
+})();
+</script>
+
+<script>
+/* Transport claim .xlsx writer: reuses the original report's styles.xml and theme, writes the sheet XML and a stored zip. */
+(function(root){
+const TPL={STYLES:"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x14ac x16r2 xr\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\" xmlns:x16r2=\"http://schemas.microsoft.com/office/spreadsheetml/2015/02/main\" xmlns:xr=\"http://schemas.microsoft.com/office/spreadsheetml/2014/revision\"><numFmts count=\"2\"><numFmt numFmtId=\"42\" formatCode=\"_-&quot;Rp&quot;* #,##0_-;\\-&quot;Rp&quot;* #,##0_-;_-&quot;Rp&quot;* &quot;-&quot;_-;_-@_-\"/><numFmt numFmtId=\"164\" formatCode=\"_([$IDR]\\ * #,##0.00_);_([$IDR]\\ * \\(#,##0.00\\);_([$IDR]\\ * &quot;-&quot;??_);_(@_)\"/></numFmts><fonts count=\"6\"><font><sz val=\"11\"/><color theme=\"1\"/><name val=\"Amasis MT Pro\"/><charset val=\"134\"/></font><font><sz val=\"18\"/><color theme=\"1\"/><name val=\"Amasis MT Pro\"/><charset val=\"134\"/></font><font><sz val=\"17\"/><color theme=\"1\"/><name val=\"Arial\"/><charset val=\"134\"/></font><font><b/><sz val=\"17\"/><color theme=\"1\"/><name val=\"Arial\"/><charset val=\"134\"/></font><font><sz val=\"18\"/><color theme=\"1\"/><name val=\"Arial\"/><charset val=\"134\"/></font><font><sz val=\"16\"/><color theme=\"1\"/><name val=\"Arial\"/><charset val=\"134\"/></font></fonts><fills count=\"3\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"0\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"10\"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style=\"thin\"><color auto=\"1\"/></left><right style=\"thin\"><color auto=\"1\"/></right><top style=\"thin\"><color auto=\"1\"/></top><bottom style=\"thin\"><color auto=\"1\"/></bottom><diagonal/></border><border><left style=\"medium\"><color rgb=\"FF000000\"/></left><right/><top style=\"medium\"><color rgb=\"FF000000\"/></top><bottom style=\"medium\"><color rgb=\"FF000000\"/></bottom><diagonal/></border><border><left/><right style=\"medium\"><color rgb=\"FF000000\"/></right><top style=\"medium\"><color rgb=\"FF000000\"/></top><bottom style=\"medium\"><color rgb=\"FF000000\"/></bottom><diagonal/></border><border><left style=\"medium\"><color rgb=\"FFCCCCCC\"/></left><right/><top style=\"medium\"><color rgb=\"FF000000\"/></top><bottom style=\"medium\"><color rgb=\"FF000000\"/></bottom><diagonal/></border><border><left style=\"medium\"><color rgb=\"FF000000\"/></left><right style=\"medium\"><color rgb=\"FF000000\"/></right><top style=\"medium\"><color rgb=\"FFCCCCCC\"/></top><bottom style=\"medium\"><color rgb=\"FF000000\"/></bottom><diagonal/></border><border><left style=\"medium\"><color rgb=\"FFCCCCCC\"/></left><right style=\"medium\"><color rgb=\"FF000000\"/></right><top style=\"medium\"><color rgb=\"FFCCCCCC\"/></top><bottom style=\"medium\"><color rgb=\"FF000000\"/></bottom><diagonal/></border><border><left style=\"thin\"><color auto=\"1\"/></left><right/><top style=\"thin\"><color auto=\"1\"/></top><bottom style=\"thin\"><color auto=\"1\"/></bottom><diagonal/></border><border><left/><right/><top style=\"thin\"><color auto=\"1\"/></top><bottom style=\"thin\"><color auto=\"1\"/></bottom><diagonal/></border><border><left/><right style=\"thin\"><color auto=\"1\"/></right><top style=\"thin\"><color auto=\"1\"/></top><bottom style=\"thin\"><color auto=\"1\"/></bottom><diagonal/></border></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"33\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/><xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/><xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\"/><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\"/><xf numFmtId=\"16\" fontId=\"2\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\"/></xf><xf numFmtId=\"2\" fontId=\"2\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"42\" fontId=\"2\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\"/><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"164\" fontId=\"3\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\"/><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"5\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"6\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"16\" fontId=\"2\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\"/><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"5\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment vertical=\"top\" wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"7\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"8\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"9\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"4\" fillId=\"0\" borderId=\"5\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"4\" fillId=\"0\" borderId=\"6\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"0\" borderId=\"5\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"0\" borderId=\"6\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"6\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"0\" borderId=\"6\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"7\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"8\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"9\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"2\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/><extLst><ext uri=\"{F19249F5-4A6E-446B-B59F-E2C9F2DAA1D5}\" xmlns:etc=\"http://www.wps.cn/officeDocument/2017/etCustomData\"><etc:displayText val=\"2\"/></ext></extLst></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"3\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/><extLst><ext uri=\"{F19249F5-4A6E-446B-B59F-E2C9F2DAA1D5}\" xmlns:etc=\"http://www.wps.cn/officeDocument/2017/etCustomData\"><etc:displayText val=\"2\"/></ext></extLst></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"4\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" wrapText=\"1\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"3\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\" readingOrder=\"1\"/></xf></cellXfs><cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles><dxfs count=\"0\"/><tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium2\" defaultPivotStyle=\"PivotStyleLight16\"/><extLst><ext uri=\"{EB79DEF2-80B8-43e5-95BD-54CBDDF9020C}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:slicerStyles defaultSlicerStyle=\"SlicerStyleLight1\"/></ext><ext uri=\"{9260A510-F301-46a8-8635-F512D64BE5F5}\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\"><x15:timelineStyles defaultTimelineStyle=\"TimeSlicerStyleLight1\"/></ext></extLst></styleSheet>",THEME:"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"Office Theme\"><a:themeElements><a:clrScheme name=\"Office\"><a:dk1><a:sysClr val=\"windowText\" lastClr=\"000000\"/></a:dk1><a:lt1><a:sysClr val=\"window\" lastClr=\"FFFFFF\"/></a:lt1><a:dk2><a:srgbClr val=\"0E2841\"/></a:dk2><a:lt2><a:srgbClr val=\"E8E8E8\"/></a:lt2><a:accent1><a:srgbClr val=\"156082\"/></a:accent1><a:accent2><a:srgbClr val=\"E97132\"/></a:accent2><a:accent3><a:srgbClr val=\"196B24\"/></a:accent3><a:accent4><a:srgbClr val=\"0F9ED5\"/></a:accent4><a:accent5><a:srgbClr val=\"A02B93\"/></a:accent5><a:accent6><a:srgbClr val=\"4EA72E\"/></a:accent6><a:hlink><a:srgbClr val=\"467886\"/></a:hlink><a:folHlink><a:srgbClr val=\"96607D\"/></a:folHlink></a:clrScheme><a:fontScheme name=\"Office\"><a:majorFont><a:latin typeface=\"Aptos Display\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/><a:font script=\"Jpan\" typeface=\"\u6e38\u30b4\u30b7\u30c3\u30af Light\"/><a:font script=\"Hang\" typeface=\"\ub9d1\uc740 \uace0\ub515\"/><a:font script=\"Hans\" typeface=\"\u7b49\u7ebf Light\"/><a:font script=\"Hant\" typeface=\"\u65b0\u7d30\u660e\u9ad4\"/><a:font script=\"Arab\" typeface=\"Times New Roman\"/><a:font script=\"Hebr\" typeface=\"Times New Roman\"/><a:font script=\"Thai\" typeface=\"Tahoma\"/><a:font script=\"Ethi\" typeface=\"Nyala\"/><a:font script=\"Beng\" typeface=\"Vrinda\"/><a:font script=\"Gujr\" typeface=\"Shruti\"/><a:font script=\"Khmr\" typeface=\"MoolBoran\"/><a:font script=\"Knda\" typeface=\"Tunga\"/><a:font script=\"Guru\" typeface=\"Raavi\"/><a:font script=\"Cans\" typeface=\"Euphemia\"/><a:font script=\"Cher\" typeface=\"Plantagenet Cherokee\"/><a:font script=\"Yiii\" typeface=\"Microsoft Yi Baiti\"/><a:font script=\"Tibt\" typeface=\"Microsoft Himalaya\"/><a:font script=\"Thaa\" typeface=\"MV Boli\"/><a:font script=\"Deva\" typeface=\"Mangal\"/><a:font script=\"Telu\" typeface=\"Gautami\"/><a:font script=\"Taml\" typeface=\"Latha\"/><a:font script=\"Syrc\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Orya\" typeface=\"Kalinga\"/><a:font script=\"Mlym\" typeface=\"Kartika\"/><a:font script=\"Laoo\" typeface=\"DokChampa\"/><a:font script=\"Sinh\" typeface=\"Iskoola Pota\"/><a:font script=\"Mong\" typeface=\"Mongolian Baiti\"/><a:font script=\"Viet\" typeface=\"Times New Roman\"/><a:font script=\"Uigh\" typeface=\"Microsoft Uighur\"/><a:font script=\"Geor\" typeface=\"Sylfaen\"/></a:majorFont><a:minorFont><a:latin typeface=\"Aptos Narrow\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/><a:font script=\"Jpan\" typeface=\"\u6e38\u30b4\u30b7\u30c3\u30af\"/><a:font script=\"Hang\" typeface=\"\ub9d1\uc740 \uace0\ub515\"/><a:font script=\"Hans\" typeface=\"\u7b49\u7ebf\"/><a:font script=\"Hant\" typeface=\"\u65b0\u7d30\u660e\u9ad4\"/><a:font script=\"Arab\" typeface=\"Arial\"/><a:font script=\"Hebr\" typeface=\"Arial\"/><a:font script=\"Thai\" typeface=\"Tahoma\"/><a:font script=\"Ethi\" typeface=\"Nyala\"/><a:font script=\"Beng\" typeface=\"Vrinda\"/><a:font script=\"Gujr\" typeface=\"Shruti\"/><a:font script=\"Khmr\" typeface=\"DaunPenh\"/><a:font script=\"Knda\" typeface=\"Tunga\"/><a:font script=\"Guru\" typeface=\"Raavi\"/><a:font script=\"Cans\" typeface=\"Euphemia\"/><a:font script=\"Cher\" typeface=\"Plantagenet Cherokee\"/><a:font script=\"Yiii\" typeface=\"Microsoft Yi Baiti\"/><a:font script=\"Tibt\" typeface=\"Microsoft Himalaya\"/><a:font script=\"Thaa\" typeface=\"MV Boli\"/><a:font script=\"Deva\" typeface=\"Mangal\"/><a:font script=\"Telu\" typeface=\"Gautami\"/><a:font script=\"Taml\" typeface=\"Latha\"/><a:font script=\"Syrc\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Orya\" typeface=\"Kalinga\"/><a:font script=\"Mlym\" typeface=\"Kartika\"/><a:font script=\"Laoo\" typeface=\"DokChampa\"/><a:font script=\"Sinh\" typeface=\"Iskoola Pota\"/><a:font script=\"Mong\" typeface=\"Mongolian Baiti\"/><a:font script=\"Viet\" typeface=\"Arial\"/><a:font script=\"Uigh\" typeface=\"Microsoft Uighur\"/><a:font script=\"Geor\" typeface=\"Sylfaen\"/></a:minorFont></a:fontScheme><a:fmtScheme name=\"Office\"><a:fillStyleLst><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"110000\"/><a:satMod val=\"105000\"/><a:tint val=\"67000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"105000\"/><a:satMod val=\"103000\"/><a:tint val=\"73000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"105000\"/><a:satMod val=\"109000\"/><a:tint val=\"81000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:satMod val=\"103000\"/><a:lumMod val=\"102000\"/><a:tint val=\"94000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:satMod val=\"110000\"/><a:lumMod val=\"100000\"/><a:shade val=\"100000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"99000\"/><a:satMod val=\"120000\"/><a:shade val=\"78000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill></a:fillStyleLst><a:lnStyleLst><a:ln w=\"12700\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln><a:ln w=\"19050\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln><a:ln w=\"25400\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst><a:outerShdw blurRad=\"57150\" dist=\"19050\" dir=\"5400000\" algn=\"ctr\" rotWithShape=\"0\"><a:srgbClr val=\"000000\"><a:alpha val=\"63000\"/></a:srgbClr></a:outerShdw></a:effectLst></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:solidFill><a:schemeClr val=\"phClr\"><a:tint val=\"95000\"/><a:satMod val=\"170000\"/></a:schemeClr></a:solidFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:tint val=\"93000\"/><a:satMod val=\"150000\"/><a:shade val=\"98000\"/><a:lumMod val=\"102000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:tint val=\"98000\"/><a:satMod val=\"130000\"/><a:shade val=\"90000\"/><a:lumMod val=\"103000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:shade val=\"63000\"/><a:satMod val=\"120000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements><a:objectDefaults><a:lnDef><a:spPr/><a:bodyPr/><a:lstStyle/><a:style><a:lnRef idx=\"2\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></a:style></a:lnDef></a:objectDefaults><a:extraClrSchemeLst/></a:theme>",COLS:"<cols><col min=\"1\" max=\"1\" width=\"9\" style=\"1\"/><col min=\"2\" max=\"2\" width=\"32.796875\" style=\"1\" customWidth=\"1\"/><col min=\"3\" max=\"3\" width=\"43.33203125\" style=\"1\" customWidth=\"1\"/><col min=\"4\" max=\"4\" width=\"53.19921875\" style=\"1\" customWidth=\"1\"/><col min=\"5\" max=\"5\" width=\"12.19921875\" style=\"1\" customWidth=\"1\"/><col min=\"6\" max=\"6\" width=\"30.59765625\" style=\"1\" customWidth=\"1\"/><col min=\"7\" max=\"7\" width=\"32\" style=\"1\" customWidth=\"1\"/><col min=\"8\" max=\"8\" width=\"43.6640625\" style=\"1\" customWidth=\"1\"/><col min=\"9\" max=\"9\" width=\"36.796875\" style=\"1\" customWidth=\"1\"/><col min=\"10\" max=\"10\" width=\"12.796875\" style=\"1\" customWidth=\"1\"/><col min=\"11\" max=\"11\" width=\"9\" style=\"1\"/><col min=\"12\" max=\"12\" width=\"20.796875\" style=\"1\" customWidth=\"1\"/><col min=\"13\" max=\"16384\" width=\"9\" style=\"1\"/></cols>"};
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const HARI=['MINGGU','SENIN','SELASA','RABU','KAMIS','JUMAT','SABTU'];
+const parseD=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d))};
+const serial=s=>parseD(s).getTime()/86400000+25569;
+const dLabel=s=>{const d=parseD(s);return d.getUTCDate()+' '+MON[d.getUTCMonth()]};
+const xml=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
+const legTotal=d=>(d.legs||[]).reduce((a,l)=>a+(Number(l.amount)||0),0);
+const hasContent=d=>!!(d.customer||(d.jobs||[]).some(Boolean)||(d.legs||[]).some(l=>l.dir||l.amount));
+const sortedDays=w=>[...w.days].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+function weekLabel(w){const ds=sortedDays(w).filter(hasContent);const l=ds.length?ds:sortedDays(w);return l.length?dLabel(l[0].date)+' - '+dLabel(l[l.length-1].date):dLabel(w.start)}
+function timeNum(t){if(!t)return null;const [h,m]=t.split(':').map(Number);return Math.round((h+(m||0)/100)*100)/100}
+function usedFmt(s){const d=parseD(s);return d.getUTCDate()+' '+MON[d.getUTCMonth()].toUpperCase()+' '+d.getUTCFullYear()}
+function repLabel(s){if(!s)return'';const d=parseD(s);return HARI[d.getUTCDay()]+' '+String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+d.getUTCFullYear()}
+function repStatus(r){return r.usedDate?'USED ('+usedFmt(r.usedDate)+')'+(r.reason?' '+r.reason.toUpperCase():''):'available'}
+
+function reportRows(w,home){
+  const rows=[];let no=0;
+  sortedDays(w).filter(hasContent).forEach(d=>{
+    no++;const jobs=(d.jobs||[]).filter(x=>x&&x.trim()).map(x=>x.trim());const legs=(d.legs||[]).filter(l=>l.dir||l.amount);
+    rows.push({A:no,B:d.date,C:(d.customer||'').trim(),D:jobs[0]||'',E:timeNum(d.startTime),F:d.startOdo!=null?'start ('+d.startOdo+')':'start',H:home});
+    const mid=Math.max(legs.length,jobs.length-1);
+    for(let i=0;i<mid;i++){const l=legs[i]||{};rows.push({D:jobs[i+1]||'',G:l.amount??null,H:(l.dir||'').trim(),I:l.remark||''})}
+    rows.push({E:timeNum(d.endTime),F:d.endOdo!=null?'end('+d.endOdo+')':'end',H:home});
+  });
+  return rows;
+}
+
+/* ---- sheet writer ---- */
+function Sheet(){this.rows={};this.ht={};this.merges=[]}
+Sheet.prototype.set=function(ref,v,s,kind){const r=+ref.replace(/[A-Z]+/,'');(this.rows[r]=this.rows[r]||{})[ref.replace(/\d+/,'')]={v,s,kind}};
+Sheet.prototype.cellXml=function(col,r,c){
+  const ref=col+r;
+  if(c.kind==='f')return '<c r="'+ref+'" s="'+c.s+'"><f>'+xml(c.v.f)+'</f><v>'+c.v.v+'</v></c>';
+  if(c.v===null||c.v===undefined||c.v==='')return '<c r="'+ref+'" s="'+c.s+'"/>';
+  if(typeof c.v==='number')return '<c r="'+ref+'" s="'+c.s+'"><v>'+c.v+'</v></c>';
+  return '<c r="'+ref+'" s="'+c.s+'" t="inlineStr"><is><t xml:space="preserve">'+xml(c.v)+'</t></is></c>';
+};
+const COLS='ABCDEFGHIJKL'.split('');
+const ci=c=>COLS.indexOf(c);
+Sheet.prototype.xml=function(){
+  const nums=Object.keys(this.rows).map(Number).sort((a,b)=>a-b);
+  const last=nums[nums.length-1]||1;
+  let out='';
+  nums.forEach(r=>{
+    const cells=this.rows[r];const cols=Object.keys(cells).sort((a,b)=>ci(a)-ci(b));
+    const ht=this.ht[r]?' ht="'+this.ht[r]+'" customHeight="1"':'';
+    out+='<row r="'+r+'"'+ht+'>'+cols.map(c=>this.cellXml(c,r,cells[c])).join('')+'</row>';
+  });
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+    '<dimension ref="A1:L'+last+'"/><sheetViews><sheetView tabSelected="1" zoomScale="46" zoomScaleNormal="40" workbookViewId="0"><selection activeCell="A1" sqref="A1"/></sheetView></sheetViews>'+
+    '<sheetFormatPr defaultColWidth="9" defaultRowHeight="23.25"/>'+TPL.COLS+'<sheetData>'+out+'</sheetData>'+
+    (this.merges.length?'<mergeCells count="'+this.merges.length+'">'+this.merges.map(m=>'<mergeCell ref="'+m+'"/>').join('')+'</mergeCells>':'')+
+    '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><pageSetup orientation="portrait" horizontalDpi="360" verticalDpi="360"/></worksheet>';
+};
+/* approx characters that fit on one line at Arial 17 for each column (original widths) */
+const FIT={C:28,D:34,CE:42,G:20,H:28,HK:62,J:8};
+const lines=(t,n)=>t?Math.max(1,Math.ceil(String(t).length/n)):1;
+
+function buildSheet(w,extra,home){
+  const sh=new Sheet();const rows=reportRows(w,home);const total=w.days.reduce((a,d)=>a+legTotal(d),0);
+  const fill=(r,from,to,s)=>{for(let i=ci(from);i<=ci(to);i++)sh.set(COLS[i]+r,null,s)};
+  // title rows
+  fill(1,'A','L',2);sh.set('A1','Transport Claim Report',2);
+  fill(2,'A','L',2);sh.set('B2',weekLabel(w),3);sh.ht[2]=22.8;
+  ['No','Date','Customer','Job','Time','Details','Amount','direction','remarks'].forEach((h,i)=>sh.set(COLS[i]+3,h,4));fill(3,'J','L',2);sh.ht[3]=22.8;
+  // data rows
+  let r=4;
+  rows.forEach(row=>{
+    const S={A:5,B:6,C:7,D:row.D?8:5,E:9,F:5,G:10,H:11,I:5};
+    Object.keys(S).forEach(c=>{let v=row[c];if(c==='B'&&v)v=serial(v);sh.set(c+r,v??null,S[c])});
+    fill(r,'J','L',2);
+    const n=lines(row.D,FIT.D);sh.ht[r]=n>1?n*21:22.8;
+    r++;
+  });
+  const tr=r;
+  sh.set('A'+tr,null,5);sh.set('B'+tr,'grand total',4);fill(tr,'C','F',4);
+  sh.set('G'+tr,{f:'SUM(G4:G'+(tr-1)+')',v:total},12,'f');sh.set('H'+tr,null,11);sh.set('I'+tr,null,5);fill(tr,'J','L',2);sh.ht[tr]=23.65;
+  fill(tr+1,'A','L',2);
+  // notes
+  const n0=tr+2;fill(n0,'A','L',2);
+  sh.set('B'+n0,'note',2);sh.set('C'+n0,Number(extra.year)||extra.year||'',2);sh.set('G'+n0,'calibration claim :',2);
+  const h=n0+1;
+  sh.set('A'+h,null,2);sh.set('B'+h,'REPLACEMENT DAY COUNT :',29);sh.set('C'+h,null,30);sh.merges.push('B'+h+':C'+h);
+  sh.set('D'+h,'status',31);sh.set('E'+h,null,32);sh.merges.push('D'+h+':E'+h);sh.set('F'+h,null,2);
+  [['G','customer'],['H','job'],['I','Date'],['J','remarks'],['K',null],['L','amount']].forEach(([c,v])=>sh.set(c+h,v,5));
+  const need={};const bump=(rr,n)=>{need[rr]=Math.max(need[rr]||1,n)};
+  const reps=[...(extra.replacement||[])].sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);
+  reps.forEach((x,i)=>{const y=h+1+i;sh.set('A'+y,null,2);sh.set('B'+y,repLabel(x.date),13);sh.set('C'+y,x.job||'',14);
+    const st=repStatus(x);sh.set('D'+y,st,24);sh.set('E'+y,null,24);sh.merges.push('D'+y+':E'+y);sh.set('F'+y,null,2);
+    bump(y,Math.max(lines(x.job,FIT.C),lines(st,FIT.CE)))});
+  const cal=extra.calibration||[];const ck=Math.max(cal.length,5);
+  for(let i=0;i<ck;i++){const y=h+1+i,c=cal[i]||{};
+    sh.set('G'+y,c.customer||null,5);sh.set('H'+y,c.job||null,5);sh.set('I'+y,c.date?serial(c.date):null,15);sh.set('J'+y,c.remarks||null,5);sh.set('K'+y,null,5);sh.set('L'+y,c.amount??null,10);}
+  const cg=h+1+ck;
+  sh.set('G'+cg,'grand total',5);fill(cg,'H','K',5);sh.set('L'+cg,{f:'SUM(L'+(h+1)+':L'+(cg-1)+')',v:cal.reduce((a,c)=>a+(Number(c.amount)||0),0)},10,'f');
+  const t=cg+2;sh.set('G'+t,'Tamura Claim',2);fill(t,'H','L',2);
+  const th=t+1;sh.set('G'+th,'customer',5);sh.set('H'+th,'details',26);sh.set('I'+th,null,27);sh.set('J'+th,null,27);sh.set('K'+th,null,28);sh.merges.push('H'+th+':K'+th);sh.set('L'+th,'amount',10);
+  const tam=extra.tamura||[];const tk=Math.max(tam.length,4);
+  for(let i=0;i<tk;i++){const y=th+1+i,c=tam[i]||{};
+    sh.set('G'+y,c.customer||null,5);sh.set('H'+y,c.details||null,26);sh.set('I'+y,null,27);sh.set('J'+y,null,27);sh.set('K'+y,null,28);sh.merges.push('H'+y+':K'+y);sh.set('L'+y,c.amount??null,10);
+    bump(y,lines(c.details,FIT.HK))}
+  const tg=th+1+tk;
+  sh.set('G'+tg,'GRAND TOTAL',17);sh.set('H'+tg,null,18);sh.set('I'+tg,null,18);sh.set('J'+tg,null,18);sh.set('K'+tg,null,19);
+  sh.set('L'+tg,{f:'SUM(L'+(th+1)+':L'+(tg-1)+')',v:tam.reduce((a,c)=>a+(Number(c.amount)||0),0)},10,'f');
+  Object.keys(need).forEach(y=>{if(need[y]>1)sh.ht[y]=need[y]*21});
+  return sh.xml();
+}
+
+/* ---- zip (stored) ---- */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function zip(files){
+  const enc=new TextEncoder();const parts=[];const central=[];let off=0;
+  const d=new Date();const time=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);const date=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
+  files.forEach(([name,text])=>{
+    const nb=enc.encode(name),data=enc.encode(text),crc=crc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);lh.setUint16(10,time,true);lh.setUint16(12,date,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,data.length,true);lh.setUint32(22,data.length,true);lh.setUint16(26,nb.length,true);lh.setUint16(28,0,true);
+    parts.push(new Uint8Array(lh.buffer),nb,data);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);ch.setUint16(12,time,true);ch.setUint16(14,date,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,data.length,true);ch.setUint32(24,data.length,true);ch.setUint16(28,nb.length,true);ch.setUint32(42,off,true);
+    central.push(new Uint8Array(ch.buffer),nb);
+    off+=30+nb.length+data.length;
+  });
+  const csize=central.reduce((a,p)=>a+p.length,0);
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,csize,true);end.setUint32(16,off,true);
+  const all=[...parts,...central,new Uint8Array(end.buffer)];
+  const out=new Uint8Array(all.reduce((a,p)=>a+p.length,0));let p=0;all.forEach(a=>{out.set(a,p);p+=a.length});
+  return out;
+}
+
+function buildReport(week,extra,home){
+  const H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  return zip([
+    ['[Content_Types].xml',H+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+    ['_rels/.rels',H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml',H+'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>'],
+    ['xl/_rels/workbook.xml.rels',H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['xl/worksheets/sheet1.xml',buildSheet(week,extra,home||'rumah')],
+    ['xl/styles.xml',TPL.STYLES],
+    ['xl/theme/theme1.xml',TPL.THEME]
+  ]);
+}
+root.TransportXlsx={buildReport,reportRows,weekLabel};
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<datalist id="dlCustomers"></datalist>
+<datalist id="dlJobs"></datalist>
+<datalist id="dlPlaces"></datalist>
+
+<script>
+(function(){
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const HARI=['MINGGU','SENIN','SELASA','RABU','KAMIS','JUMAT','SABTU'];
+const DAYN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const LS='transportClaim.v1';
+/* Replacement days from the Excel report; always restored when the list is empty */
+const DEFAULT_REPLACEMENT=[];
+const DEFAULT_SETTINGS={home:'rumah',places:{Dalkot:11000,Bandara:8500},routes:[
+  {name:'Cikarang/Cibitung',legs:[{dir:'Dalkot',amount:11000},{dir:'Cikampek',amount:9500},{dir:'Cikampek',amount:9500},{dir:'Dalkot',amount:11000}]},
+  {name:'Karawang Barat',legs:[{dir:'Dalkot',amount:11000},{dir:'Cikampek',amount:16500},{dir:'Cikampek',amount:16500},{dir:'Dalkot',amount:11000}]},
+  {name:'Karawang Timur',legs:[{dir:'Dalkot',amount:11000},{dir:'Cikampek',amount:27000},{dir:'Cikampek',amount:27000},{dir:'Dalkot',amount:11000}]},
+  {name:'Citra',legs:[{dir:'Bandara',amount:8500},{dir:'Bandara',amount:8500}]}]};
+const S={weeks:{},settings:{home:'rumah',places:{},routes:[]},extra:{year:'',replacement:[],calibration:[],tamura:[]},cur:null};
+let db=null, mode='loading', saveRoute=null, delArm=null;
+
+const $=(s,el=document)=>el.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=v=>{const d=String(v??'').replace(/[^\d]/g,'');return d===''?null:Number(d)};
+const rp=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
+const thou=n=>n==null||n===''?'':Number(n).toLocaleString('id-ID');
+const parseD=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d))};
+const iso=d=>d.toISOString().slice(0,10);
+const addDays=(s,n)=>{const d=parseD(s);d.setUTCDate(d.getUTCDate()+n);return iso(d)};
+const dLabel=s=>{const d=parseD(s);return d.getUTCDate()+' '+MON[d.getUTCMonth()]};
+const uid=()=>Math.random().toString(36).slice(2,9);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const week=()=>S.weeks[S.cur];
+const legTotal=d=>(d.legs||[]).reduce((a,l)=>a+(Number(l.amount)||0),0);
+const km=d=>(d.endOdo!=null&&d.startOdo!=null&&d.endOdo>=d.startOdo)?d.endOdo-d.startOdo:null;
+const hasContent=d=>!!(d.customer||(d.jobs||[]).some(Boolean)||(d.legs||[]).some(l=>l.dir||l.amount));
+const sortedDays=w=>[...w.days].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+function weekLabel(w){const ds=sortedDays(w).filter(hasContent);const list=ds.length?ds:sortedDays(w);if(!list.length)return dLabel(w.start);return dLabel(list[0].date)+' - '+dLabel(list[list.length-1].date)}
+function mondayOf(s){const d=parseD(s);const wd=d.getUTCDay();return addDays(s,wd===0?1:1-wd)}
+function blankDay(date){return{id:uid(),date,customer:'',jobs:[''],startTime:'07:00',startOdo:null,endTime:'',endOdo:null,legs:[]}}
+
+/* ---------- storage ---------- */
+const timers={},inflight={},again={};
+function setStatus(t){$('#status').textContent=t}
+function queueSave(key){clearTimeout(timers[key]);setStatus('Saving…');timers[key]=setTimeout(()=>flush(key),700)}
+async function flush(key){
+  if(inflight[key]){again[key]=true;return}
+  inflight[key]=true;
+  try{await writeDoc(key);setStatus('Saved')}catch(e){setStatus('Not saved');showBanner('Your last change was not saved ('+(e&&(e.code||e.message)||'error')+'). Keep this page open and try editing again.',true)}
+  inflight[key]=false;
+  if(again[key]){again[key]=false;flush(key)}
+}
+async function writeDoc(key){
+  if(mode==='cloud'){
+    const C=window.TC_CLOUD;
+    if(key==='settings'||key==='extra')return C.write(key,clone(S[key]));
+    const k=key.slice(2);
+    return S.weeks[k]?C.write('week:'+k,clone(S.weeks[k])):C.remove('week:'+k);
+  }
+  if(mode==='db'){
+    if(key==='settings')return db.doc('settings/main').set(clone(S.settings));
+    if(key==='extra')return db.doc('settings/extra').set(clone(S.extra));
+    const k=key.slice(2);
+    if(S.weeks[k])return db.collection('weeks').doc(k).set(clone(S.weeks[k]));
+    return db.collection('weeks').doc(k).delete();
+  }
+  try{localStorage.setItem(LS,JSON.stringify({weeks:S.weeks,settings:S.settings,extra:S.extra}))}catch(e){}
+}
+const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej({code:'timeout',message:'took too long'}),ms))]);
+async function load(){
+  if(window.TC_CLOUD){
+    try{
+      const d=await window.TC_CLOUD.load();
+      Object.keys(d).forEach(k=>{if(k.startsWith('week:')){const v=d[k];if(v&&v.start)S.weeks[v.start]=v}});
+      if(d.settings)Object.assign(S.settings,d.settings);else Object.assign(S.settings,clone(DEFAULT_SETTINGS));
+      if(d.extra)Object.assign(S.extra,d.extra);
+      mode='cloud';
+      if(!d.settings)queueSave('settings');
+      if(!d.extra||!(d.extra.replacement||[]).length)showBanner('Your replacement day list is empty. Tap Restore and choose your backup file to load it once; after that it stays in your account.');
+    }catch(e){
+      showBanner('Couldn\u2019t load your saved reports ('+(e&&(e.message||e.code)||'error')+'). Reload the page to try again.',true);
+      return;
+    }
+  }
+  try{ db = !window.TC_CLOUD&&window.claude&&window.claude.use ? await withTimeout(window.claude.use('db'),10000).catch(()=>null) : null }catch(e){db=null}
+  if(db){
+    try{
+      const [ws,sm,ex]=await withTimeout(Promise.all([db.collection('weeks').get(),db.doc('settings/main').get(),db.doc('settings/extra').get()]),10000);
+      ws.docs.forEach(d=>{const v=d.data();if(v&&v.start)S.weeks[v.start]=v});
+      if(sm.exists)Object.assign(S.settings,sm.data());
+      if(ex.exists)Object.assign(S.extra,ex.data());
+      mode='db';
+    }catch(e){
+      db=null;mode='local';
+      showBanner('Couldn’t load your saved reports ('+(e.code||'error')+'). Reload the page to try again. Changes made now stay in this browser only.',true);
+    }
+  }
+  if(mode!=='db'&&mode!=='cloud'){
+    mode='local';
+    let had=false;
+    try{const v=JSON.parse(localStorage.getItem(LS)||'null');if(v){had=true;S.weeks=v.weeks||{};Object.assign(S.settings,v.settings||{});Object.assign(S.extra,v.extra||{})}}catch(e){}
+    if(!had)Object.assign(S.settings,clone(DEFAULT_SETTINGS));
+    if(!$('#banner').innerHTML)showBanner('Data is saved in this browser only. Tap Backup every week to keep a copy, and Restore to load it on another device.');
+  }
+  if(!S.extra.year)S.extra.year=String(new Date().getFullYear());
+  if(DEFAULT_REPLACEMENT.length&&(!Array.isArray(S.extra.replacement)||!S.extra.replacement.length)){S.extra.replacement=clone(DEFAULT_REPLACEMENT);queueSave('extra')}
+  const keys=Object.keys(S.weeks).sort();
+  S.cur=keys[keys.length-1]||null;
+  renderAll();
+}
+function showBanner(t,err){$('#banner').innerHTML='<div class="banner'+(err?' err':'')+'">'+esc(t)+'</div>'}
+
+/* ---------- suggestions ---------- */
+function allDays(){return Object.values(S.weeks).flatMap(w=>w.days.map(d=>({...d,_w:w.start})))}
+function refreshLists(){
+  const c=new Set(),j=new Set(),p=new Set(Object.keys(S.settings.places||{}));
+  allDays().forEach(d=>{d.customer&&c.add(d.customer.trim());(d.jobs||[]).forEach(x=>x&&j.add(x.trim()));(d.legs||[]).forEach(l=>l.dir&&p.add(l.dir.trim()))});
+  (S.extra.calibration||[]).forEach(r=>r.customer&&c.add(r.customer));
+  const opt=s=>[...s].sort().map(v=>'<option value="'+esc(v)+'">').join('');
+  $('#dlCustomers').innerHTML=opt(c);$('#dlJobs').innerHTML=opt(j);
+  $('#dlPlaces').innerHTML=[...p].sort().map(v=>'<option value="'+esc(v)+'">'+(S.settings.places[v]!=null?esc(rp(S.settings.places[v])):'')+'</option>').join('');
+}
+function templates(){
+  const seen=new Set(),out=[];
+  allDays().sort((a,b)=>a.date<b.date?1:-1).forEach(d=>{
+    if(!d.customer&&!(d.legs||[]).length)return;
+    const k=[d.customer,(d.jobs||[]).join('+'),(d.legs||[]).map(l=>l.dir).join('>')].join('|');
+    if(seen.has(k))return;seen.add(k);out.push(d);
+  });
+  return out.slice(0,15);
+}
+
+/* ---------- render ---------- */
+function renderAll(){renderNewWeekSel();renderWeekSel();renderWeek();renderExtra();renderRoutes();refreshLists();updateTotals()}
+let routeArm=null;
+function renderRoutes(){
+  const R=S.settings.routes||[];
+  $('#routeSum').textContent=R.length+' route'+(R.length===1?'':'s');
+  $('#routeList').innerHTML=R.length?R.map((r,ri)=>'<div style="border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:6px">'+
+    '<div style="display:flex;gap:8px;align-items:center"><input data-rt="name" data-r="'+ri+'" value="'+esc(r.name)+'" aria-label="Route name" style="font-weight:600">'+
+    '<span class="num" style="white-space:nowrap;color:var(--muted);font-size:13px">'+rp(r.legs.reduce((a,l)=>a+(Number(l.amount)||0),0))+'</span>'+
+    '<button class="danger" data-rtdel="'+ri+'" style="white-space:nowrap">Delete route</button></div>'+
+    r.legs.map((l,li)=>'<div class="leg" style="grid-template-columns:1fr 130px auto"><input data-rt="dir" data-r="'+ri+'" data-l="'+li+'" value="'+esc(l.dir)+'" list="dlPlaces" aria-label="Toll gate"><div class="amt"><span>Rp</span><input class="num" inputmode="numeric" data-rt="amount" data-r="'+ri+'" data-l="'+li+'" value="'+thou(l.amount)+'" aria-label="Price"></div><button class="x" data-rtlegdel="'+ri+'" data-l="'+li+'" aria-label="Remove toll">×</button></div>').join('')+
+    '</div>').join(''):'<p style="margin:0">No saved routes yet.</p>';
+}
+{
+  const rb=$('#routeBox');
+  rb.addEventListener('input',e=>{const el=e.target,k=el.dataset.rt;if(!k)return;const r=S.settings.routes[+el.dataset.r];
+    if(k==='name')r.name=el.value;else if(k==='dir')r.legs[+el.dataset.l].dir=el.value;else r.legs[+el.dataset.l].amount=num(el.value);
+    queueSave('settings');});
+  rb.addEventListener('change',e=>{if(e.target.dataset.rt){renderRoutes();renderWeek()}});
+  rb.addEventListener('click',e=>{
+    const d=e.target.closest('[data-rtdel]'),ld=e.target.closest('[data-rtlegdel]');
+    if(d){const ri=+d.dataset.rtdel;
+      const gone=S.settings.routes.splice(ri,1)[0];queueSave('settings');renderRoutes();renderWeek();
+      $('#routeList').insertAdjacentHTML('afterbegin','<div class="banner" id="routeUndo">Deleted “'+esc(gone.name)+'”. <button class="ghost" id="routeUndoBtn">Undo</button></div>');
+      $('#routeUndoBtn').onclick=()=>{S.settings.routes.splice(ri,0,gone);queueSave('settings');renderRoutes();renderWeek()};}
+    if(ld){const r=S.settings.routes[+ld.dataset.rtlegdel];r.legs.splice(+ld.dataset.l,1);queueSave('settings');renderRoutes();renderWeek();}
+  });
+}
+function renderWeekSel(){
+  const keys=Object.keys(S.weeks).sort().reverse();
+  $('#weekSel').innerHTML=keys.map(k=>'<option value="'+k+'"'+(k===S.cur?' selected':'')+'>'+esc(weekLabel(S.weeks[k]))+' '+k.slice(0,4)+'</option>').join('');
+  $('#weekSel').hidden=!keys.length;$('#delWeek').hidden=!keys.length;
+  $('#wkLabel').textContent=S.cur?weekLabel(week())+' '+S.cur.slice(0,4):'No week yet';
+}
+function renderWeek(){
+  const w=week();
+  if(!w){$('#main').innerHTML='<div class="empty"><h2 style="font-size:24px">No weekly report yet</h2><p>Start a week and you get Monday to Friday ready to fill in.</p><button class="primary" data-act="new-week">Start this week</button></div>';return}
+  const tpl=templates();
+  const tplOpts='<option value="">Repeat a past day…</option>'+tpl.map((d,i)=>'<option value="'+i+'">'+esc((d.customer||'—')+' · '+((d.jobs||[]).filter(Boolean).join(' + ')||'no job')+' · '+((d.legs||[]).map(l=>l.dir).filter(Boolean).join(' → ')||'no tolls'))+'</option>').join('');
+  const routes=S.settings.routes||[];
+  $('#main').innerHTML='<div class="days">'+w.days.map((d,i)=>{
+    const dt=parseD(d.date);const k=km(d);
+    return '<section class="day" data-d="'+i+'">'+
+    '<div class="dayhead"><h3>'+DAYN[dt.getUTCDay()]+' '+dLabel(d.date)+'</h3>'+
+      '<div class="meta"><span>Total <b data-o="dtot">'+rp(legTotal(d))+'</b></span><span>Distance <b data-o="dkm">'+(k==null?'–':k+' km')+'</b></span>'+
+      '<button class="x" data-act="del-day" title="Remove this day" aria-label="Remove this day">'+(delArm==='d'+d.id?'<span style="font-size:13px;color:var(--warn)">Tap again to remove</span>':'×')+'</button></div></div>'+
+    '<div class="daybody">'+
+      '<div class="tools"><select class="fill" data-act="fill" aria-label="Repeat a past day">'+tplOpts+'</select></div>'+
+      '<div class="grid2"><div><label class="lbl">Date</label><input type="date" data-f="date" value="'+d.date+'"></div>'+
+      '<div><label class="lbl">Customer</label><input list="dlCustomers" data-f="customer" value="'+esc(d.customer)+'" placeholder="e.g. SMT"></div></div>'+
+      '<div><span class="lbl">Job</span><div class="jobs">'+(d.jobs.length?d.jobs:['']).map((j,ji)=>'<div class="jobrow"><input list="dlJobs" data-f="job" data-j="'+ji+'" value="'+esc(j)+'" placeholder="e.g. KOHYOUNG Support reduce false call">'+(ji>0?'<button class="x" data-act="del-job" data-j="'+ji+'" aria-label="Remove job">×</button>':'')+'</div>').join('')+
+        '</div><button class="ghost" data-act="add-job">+ Another job</button></div>'+
+      '<div class="trip">'+
+        '<div class="point"><span class="tag">Start</span><input type="time" data-f="startTime" value="'+esc(d.startTime)+'" aria-label="Start time"><input class="num" inputmode="numeric" data-f="startOdo" value="'+(d.startOdo??'')+'" placeholder="Odometer"></div>'+
+        (routes.length?'<div><span class="lbl">Toll route · click to add, click again to remove</span><div class="routes">'+routes.map((r,ri)=>{const on=d.legs.some(l=>l.src===r.name);return '<button class="rbtn'+(on?' on':'')+'" data-act="add-route" data-r="'+ri+'" aria-pressed="'+on+'" title="'+esc(r.legs.map(l=>l.dir+' '+thou(l.amount)).join(', '))+'"><b>'+(on?'✓ ':'')+esc(r.name)+'</b><small>'+rp(r.legs.reduce((a,l)=>a+(Number(l.amount)||0),0))+'</small></button>'}).join('')+'</div></div>':'')+
+        d.legs.map((l,li)=>'<div class="leg"><input list="dlPlaces" data-f="dir" data-l="'+li+'" value="'+esc(l.dir)+'" placeholder="Toll gate / Bensin"><div class="amt"><span>Rp</span><input class="num" inputmode="numeric" data-f="amount" data-l="'+li+'" value="'+thou(l.amount)+'"></div><input class="rem" data-f="remark" data-l="'+li+'" value="'+esc(l.remark)+'" placeholder="Remarks"><button class="x" data-act="del-leg" data-l="'+li+'" aria-label="Remove">×</button></div>').join('')+
+        '<div class="tools"><button class="ghost" data-act="add-leg">+ Toll / fuel</button>'+
+          (d.legs.length?(saveRoute===d.id?'<span class="saveroute"><input data-f="routeName" placeholder="Route name, e.g. Cikarang" aria-label="Route name"><button class="primary" data-act="save-route">Save</button><button data-act="cancel-route">Cancel</button></span>':'<button class="ghost" data-act="open-route">Save as route</button>'):'')+
+        '</div>'+
+        '<div class="point"><span class="tag">End</span><input type="time" data-f="endTime" value="'+esc(d.endTime)+'" aria-label="End time"><input class="num" inputmode="numeric" data-f="endOdo" value="'+(d.endOdo??'')+'" placeholder="Odometer"></div>'+
+      '</div>'+
+    '</div></section>';
+  }).join('')+'<button class="addday" data-act="add-day">+ Add day</button></div>';
+}
+function updateTotals(){
+  const w=week();let t=0,k=0,n=0;
+  if(w){w.days.forEach((d,i)=>{t+=legTotal(d);const kk=km(d);if(kk)k+=kk;if(hasContent(d))n++;
+    const card=$('.day[data-d="'+i+'"]');if(card){card.querySelector('[data-o="dtot"]').textContent=rp(legTotal(d));card.querySelector('[data-o="dkm"]').textContent=kk==null?'–':kk+' km'}})}
+  $('#weekTotal').textContent=rp(t);$('#weekKm').textContent=k.toLocaleString('id-ID')+' km';$('#weekDays').textContent=n;
+  if(w){$('#wkLabel').textContent=weekLabel(w)+' '+S.cur.slice(0,4)}
+}
+function saveWeek(){if(S.cur)queueSave('w:'+S.cur)}
+
+/* ---------- day events ---------- */
+const main=$('#main');
+main.addEventListener('input',e=>{
+  const el=e.target,f=el.dataset.f;if(!f||f==='routeName')return;
+  const card=el.closest('.day');if(!card)return;const d=week().days[+card.dataset.d];
+  if(f==='job'){d.jobs[+el.dataset.j]=el.value}
+  else if(f==='dir'||f==='remark'){d.legs[+el.dataset.l][f]=el.value}
+  else if(f==='amount'){d.legs[+el.dataset.l].amount=num(el.value)}
+  else if(f==='startOdo'){d.startOdo=num(el.value)}
+  else if(f==='endOdo'){
+    const i=+card.dataset.d,old=d.endOdo;d.endOdo=num(el.value);
+    const next=sortedDays(week()).find(x=>x.date>d.date);
+    if(next&&(next.startOdo==null||next.startOdo===old)){next.startOdo=d.endOdo;const ni=week().days.indexOf(next);const inp=$('.day[data-d="'+ni+'"] [data-f="startOdo"]');if(inp)inp.value=next.startOdo??''}
+  }
+  else d[f]=el.value;
+  updateTotals();saveWeek();
+});
+main.addEventListener('change',e=>{
+  const el=e.target,f=el.dataset.f;const card=el.closest('.day');if(!card)return;
+  const d=week().days[+card.dataset.d];
+  if(el.dataset.act==='fill'){
+    const t=templates()[+el.value];if(!t)return;
+    d.customer=t.customer||'';d.jobs=clone(t.jobs&&t.jobs.length?t.jobs:['']);d.legs=clone(t.legs||[]);
+    if(t.startTime)d.startTime=t.startTime;
+    renderWeek();updateTotals();saveWeek();return;
+  }
+  if(f==='dir'){
+    const l=d.legs[+el.dataset.l];const p=S.settings.places[l.dir.trim()];
+    if(l.amount==null&&p!=null){l.amount=p;card.querySelector('[data-f="amount"][data-l="'+el.dataset.l+'"]').value=thou(p);updateTotals();saveWeek()}
+  }
+  if(f==='amount'){
+    const l=d.legs[+el.dataset.l];el.value=thou(l.amount);
+    if(l.dir&&l.amount!=null&&S.settings.places[l.dir.trim()]!==l.amount){S.settings.places[l.dir.trim()]=l.amount;queueSave('settings');refreshLists()}
+  }
+  if(f==='date'){refreshLists();renderWeekSel()}
+  if(f==='customer'||f==='job')refreshLists();
+});
+main.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset.f==='routeName'){e.preventDefault();main.querySelector('[data-act="save-route"]').click()}});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b||b.tagName==='SELECT')return;
+  const act=b.dataset.act;
+  if(act==='new-week'){newWeek();return}
+  const card=b.closest('.day');const w=week();const d=card?w.days[+card.dataset.d]:null;
+  if(act==='add-leg'){d.legs.push({dir:'',amount:null,remark:''});renderWeek();const ins=main.querySelectorAll('.day[data-d="'+card.dataset.d+'"] [data-f="dir"]');ins[ins.length-1].focus()}
+  else if(act==='del-leg'){d.legs.splice(+b.dataset.l,1);renderWeek()}
+  else if(act==='add-job'){d.jobs.push('');renderWeek();const ins=main.querySelectorAll('.day[data-d="'+card.dataset.d+'"] [data-f="job"]');ins[ins.length-1].focus()}
+  else if(act==='del-job'){d.jobs.splice(+b.dataset.j,1);renderWeek()}
+  else if(act==='add-route'){const r=S.settings.routes[+b.dataset.r];
+    if(d.legs.some(l=>l.src===r.name))d.legs=d.legs.filter(l=>l.src!==r.name);
+    else d.legs.push(...clone(r.legs).map(l=>({dir:l.dir,amount:l.amount,remark:'',src:r.name})));
+    renderWeek()}
+  else if(act==='open-route'){saveRoute=d.id;renderWeek();const i=main.querySelector('[data-f="routeName"]');i&&i.focus();return}
+  else if(act==='cancel-route'){saveRoute=null;renderWeek();return}
+  else if(act==='save-route'){
+    const name=(main.querySelector('[data-f="routeName"]').value||'').trim();if(!name)return;
+    const legs=d.legs.filter(l=>l.dir).map(l=>({dir:l.dir.trim(),amount:l.amount}));
+    const ex=S.settings.routes.findIndex(r=>r.name.toLowerCase()===name.toLowerCase());
+    if(ex>=0)S.settings.routes[ex].legs=legs;else S.settings.routes.push({name,legs});
+    saveRoute=null;queueSave('settings');renderWeek();renderRoutes();return;
+  }
+  else if(act==='del-day'){
+    if(delArm!=='d'+d.id){delArm='d'+d.id;renderWeek();setTimeout(()=>{if(delArm==='d'+d.id){delArm=null;renderWeek()}},3000);return}
+    delArm=null;w.days.splice(+card.dataset.d,1);renderWeek();
+  }
+  else if(act==='add-day'){
+    const ds=sortedDays(w);const last=ds[ds.length-1];
+    const nd=blankDay(last?addDays(last.date,1):w.start);if(last&&last.endOdo!=null)nd.startOdo=last.endOdo;
+    w.days.push(nd);renderWeek();
+  }
+  else return;
+  updateTotals();saveWeek();
+});
+
+/* ---------- weeks ---------- */
+function thisMonday(){const n=new Date();const t=iso(new Date(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())));const wd=parseD(t).getUTCDay();return addDays(t,wd===0?-6:1-wd)}
+function newWeek(start){
+  if(!start){start=thisMonday();while(S.weeks[start])start=addDays(start,7)}
+  if(S.weeks[start]){S.cur=start;renderAll();return}
+  const days=[0,1,2,3,4].map(n=>blankDay(addDays(start,n)));
+  const prev=Object.keys(S.weeks).filter(k=>k<start).sort().pop();
+  if(prev){const ld=sortedDays(S.weeks[prev]).filter(d=>d.endOdo!=null).pop();if(ld)days[0].startOdo=ld.endOdo}
+  S.weeks[start]={start,days};S.cur=start;queueSave('w:'+start);renderAll();
+}
+function renderNewWeekSel(){
+  const m=thisMonday();let opts='<option value="">+ New week…</option>';
+  for(let i=1;i>=-8;i--){const s=addDays(m,i*7);if(S.weeks[s])continue;
+    const tag=i===0?' (this week)':i===1?' (next week)':i===-1?' (last week)':'';
+    opts+='<option value="'+s+'">'+dLabel(s)+' - '+dLabel(addDays(s,4))+' '+s.slice(0,4)+tag+'</option>'}
+  $('#newWeek').innerHTML=opts;
+}
+$('#newWeek').onchange=e=>{const v=e.target.value;e.target.value='';if(v)newWeek(v)};
+$('#weekSel').onchange=e=>{S.cur=e.target.value;saveRoute=null;renderAll()};
+let weekArm=false;
+$('#delWeek').onclick=()=>{
+  if(!S.cur)return;
+  if(!weekArm){weekArm=true;$('#delWeek').textContent='Tap again to delete';setTimeout(()=>{weekArm=false;$('#delWeek').textContent='Delete week'},3000);return}
+  weekArm=false;$('#delWeek').textContent='Delete week';
+  const k=S.cur;delete S.weeks[k];queueSave('w:'+k);
+  const keys=Object.keys(S.weeks).sort();S.cur=keys[keys.length-1]||null;renderAll();
+};
+
+/* ---------- extras ---------- */
+function repStatus(r){return r.usedDate?'USED ('+usedFmt(r.usedDate)+')'+(r.reason?' '+r.reason.toUpperCase():''):'available'}
+function usedFmt(s){const d=parseD(s);return d.getUTCDate()+' '+MON[d.getUTCMonth()].toUpperCase()+' '+d.getUTCFullYear()}
+function repLabel(s){if(!s)return'';const d=parseD(s);return HARI[d.getUTCDay()]+' '+String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+d.getUTCFullYear()}
+function renderExtra(){
+  const X=S.extra;$('#noteYear').value=X.year||'';
+  const del=(k,i)=>'<button class="x" data-xdel="'+k+'" data-i="'+i+'" aria-label="Remove">×</button>';
+  const inp=(k,i,f,v,extra)=>'<input data-x="'+k+'" data-i="'+i+'" data-k="'+f+'" value="'+esc(v)+'" '+(extra||'')+'>';
+  $('#xRep').innerHTML=X.replacement.map((r,i)=>'<tr><td>'+inp('replacement',i,'date',r.date,'type="date"')+'</td><td>'+inp('replacement',i,'job',r.job,'list="dlJobs"')+'</td><td>'+inp('replacement',i,'usedDate',r.usedDate||'','type="date"')+'</td><td>'+inp('replacement',i,'reason',r.reason||'','placeholder="e.g. Sick leave"')+'</td><td><span class="pill '+(r.usedDate?'used':'ok')+'" data-pill="'+i+'">'+(r.usedDate?'Used':'Available')+'</span></td><td>'+del('replacement',i)+'</td></tr>').join('');
+  $('#xCal').innerHTML=X.calibration.map((r,i)=>'<tr><td>'+inp('calibration',i,'customer',r.customer,'list="dlCustomers"')+'</td><td>'+inp('calibration',i,'job',r.job,'list="dlJobs"')+'</td><td>'+inp('calibration',i,'date',r.date||'','type="date"')+'</td><td>'+inp('calibration',i,'remarks',r.remarks)+'</td><td>'+inp('calibration',i,'amount',thou(r.amount),'class="num" inputmode="numeric"')+'</td><td>'+del('calibration',i)+'</td></tr>').join('');
+  $('#xTam').innerHTML=X.tamura.map((r,i)=>'<tr><td>'+inp('tamura',i,'customer',r.customer,'list="dlCustomers"')+'</td><td>'+inp('tamura',i,'details',r.details)+'</td><td>'+inp('tamura',i,'amount',thou(r.amount),'class="num" inputmode="numeric"')+'</td><td>'+del('tamura',i)+'</td></tr>').join('');
+  extraSummary();
+}
+function extraSummary(){const r=S.extra.replacement;const a=r.filter(x=>!x.usedDate).length;$('#extraSum').textContent=a+' replacement days available · '+(r.length-a)+' used'}
+const xb=$('#extraBox');
+xb.addEventListener('input',e=>{
+  const el=e.target;
+  if(el.id==='noteYear'){S.extra.year=el.value;queueSave('extra');return}
+  const k=el.dataset.x;if(!k)return;const r=S.extra[k][+el.dataset.i];const f=el.dataset.k;
+  r[f]=f==='amount'?num(el.value):el.value;
+  if(k==='replacement'){const p=xb.querySelector('[data-pill="'+el.dataset.i+'"]');p.className='pill '+(r.usedDate?'used':'ok');p.textContent=r.usedDate?'Used':'Available';extraSummary()}
+  queueSave('extra');
+});
+xb.addEventListener('change',e=>{if(e.target.dataset.k==='amount')e.target.value=thou(S.extra[e.target.dataset.x][+e.target.dataset.i].amount)});
+xb.addEventListener('click',e=>{
+  const a=e.target.closest('[data-xadd]');const d=e.target.closest('[data-xdel]');
+  if(a){const k=a.dataset.xadd;S.extra[k].push(k==='replacement'?{date:'',job:'',usedDate:'',reason:''}:k==='calibration'?{customer:'',job:'',date:'',remarks:'',amount:null}:{customer:'',details:'',amount:null});renderExtra();queueSave('extra');const rows=xb.querySelectorAll('[data-x="'+k+'"]');rows.length&&rows[rows.length-(k==='replacement'?4:k==='calibration'?5:3)].focus()}
+  if(d){S.extra[d.dataset.xdel].splice(+d.dataset.i,1);renderExtra();queueSave('extra')}
+});
+
+/* ---------- report rows ---------- */
+function timeNum(t){if(!t)return null;const [h,m]=t.split(':').map(Number);return Math.round((h+(m||0)/100)*100)/100}
+function reportRows(w){
+  const rows=[];let no=0;const home=S.settings.home||'rumah';
+  sortedDays(w).filter(hasContent).forEach(d=>{
+    no++;const jobs=(d.jobs||[]).filter(x=>x&&x.trim());const legs=(d.legs||[]).filter(l=>l.dir||l.amount);
+    rows.push({A:no,B:d.date,C:d.customer||'',D:jobs[0]||'',E:timeNum(d.startTime),F:d.startOdo!=null?'start ('+d.startOdo+')':'start',H:home});
+    const mid=Math.max(legs.length,jobs.length-1);
+    for(let i=0;i<mid;i++){const l=legs[i]||{};rows.push({D:jobs[i+1]||'',G:l.amount??null,H:l.dir||'',I:l.remark||''})}
+    rows.push({E:timeNum(d.endTime),F:d.endOdo!=null?'end('+d.endOdo+')':'end',H:home});
+  });
+  return rows;
+}
+
+/* ---------- copy ---------- */
+$('#copyBtn').onclick=async()=>{
+  const w=week();if(!w)return;
+  const cols='ABCDEFGHI'.split('');
+  const lines=[['No','Date','Customer','Job','Time','Details','Amount','direction','remarks'].join('\t')];
+  reportRows(w).forEach(r=>lines.push(cols.map(c=>{let v=r[c];if(v==null)return'';if(c==='B')return dLabel(v);if(c==='E')return v.toFixed(2);return String(v)}).join('\t')));
+  lines.push(['','grand total','','','','',w.days.reduce((a,d)=>a+legTotal(d),0),'',''].join('\t'));
+  const text=lines.join('\n');
+  try{await navigator.clipboard.writeText(text);showMsg('Table copied. Paste it into cell A3 of your Excel sheet.')}
+  catch(e){showMsg('Copy is blocked here. Use Download .xlsx instead.')}
+};
+function showMsg(t){const m=$('#msg');m.textContent=t;m.hidden=false;clearTimeout(showMsg.t);showMsg.t=setTimeout(()=>m.hidden=true,6000)}
+
+$('#exportBtn').onclick=async()=>{
+  const w=week();if(!w){showMsg('Start a week first.');return}
+  try{
+    const buf=window.TransportXlsx.buildReport(w,S.extra,S.settings.home||'rumah');
+    const name=weekLabel(w)+' '+S.cur.slice(0,4)+'.xlsx';
+    if(await saveFile(name,new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})))showMsg('Saved '+name);
+  }catch(e){
+    if(e&&e.code==='declined')return;
+    showMsg('Couldn’t create the file ('+(e&&(e.code||e.message)||'error')+').');
+  }
+};
+async function saveFile(name,blob){
+  if(window.claude&&window.claude.use){
+    const dl=await window.claude.use('downloads').catch(()=>null);
+    if(dl){await dl.save({filename:name,data:blob});return true}
+  }
+  try{
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);return true;
+  }catch(e){showMsg('Downloads aren’t available here. Use Copy table instead.');return false}
+}
+$('#backupBtn').onclick=async()=>{
+  const data=JSON.stringify({app:'transport-claim',version:1,weeks:S.weeks,settings:S.settings,extra:S.extra},null,1);
+  const d=new Date();const name='transport-claim-backup-'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'.json';
+  try{if(await saveFile(name,new Blob([data],{type:'application/json'})))showMsg('Backup saved: '+name)}catch(e){if(!(e&&e.code==='declined'))showMsg('Couldn’t save the backup.')}
+};
+$('#restoreBtn').onclick=()=>$('#restoreFile').click();
+$('#restoreFile').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    const v=JSON.parse(await f.text());
+    if(!v||typeof v.weeks!=='object'||!v.settings)throw new Error('not a backup file');
+    const oldKeys=Object.keys(S.weeks);
+    S.weeks=v.weeks;S.settings=Object.assign({home:'rumah',places:{},routes:[]},v.settings);S.extra=Object.assign({year:'',replacement:[],calibration:[],tamura:[]},v.extra||{});
+    const keys=Object.keys(S.weeks).sort();S.cur=keys[keys.length-1]||null;
+    oldKeys.filter(k=>!S.weeks[k]).forEach(k=>queueSave('w:'+k));
+    keys.forEach(k=>queueSave('w:'+k));queueSave('settings');queueSave('extra');
+    $('#banner').innerHTML='';
+    renderAll();showMsg('Restored '+keys.length+' week'+(keys.length===1?'':'s')+' from '+f.name);
+  }catch(err){showMsg('That file isn’t a Transport Claim backup ('+err.message+').')}
+};
+
+load();
+})();
+</script>
+
+</body>
+</html>

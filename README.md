@@ -101,3 +101,16 @@ Supabase's free tier keeps the data but does not give you point-in-time restore.
 - The customer list and each engineer's signature are stored in Supabase (`cal_customers`, `cal_engineers`) and load only after login. The file itself contains no customer data or signatures.
 - Calibration data from the machine folder is read in the browser only. Nothing is uploaded.
 - The tables are created by `supabase/calibration.sql` in the private `tamura-calibration-report` repository. Run it once in the SQL Editor.
+
+---
+
+## Transport claim report
+
+`transport/index.html` is the weekly Transport Claim Report: tolls, fuel and odometer per workday, exported as `.xlsx` in the usual report layout.
+
+- Open it at `https://<your-username>.github.io/tamura-machine-list/transport/`, or with the **Transport claim** button in the app header.
+- It uses the same logins. Approved users (admin, viewer) can use it, and `pending` accounts see nothing.
+- Each person's reports, toll routes and replacement days are stored in Supabase (`transport_docs`) and are private to that person. Admins can't see other people's claims either.
+- The file itself contains no personal data. The first time, tap **Restore** and choose a backup file to load your replacement day list and earlier weeks.
+- **Backup** downloads everything as a `.json` file.
+- The table is created by `supabase/transport.sql`. Run it once in the SQL Editor.
