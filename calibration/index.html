@@ -163,6 +163,7 @@ table.dt{width:100%;border-collapse:separate;border-spacing:0;font-variant-numer
 .fig .im.empty{display:grid;place-items:center}
 .figs3{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}
 .pairrow2{display:grid;grid-template-columns:auto 1fr 1fr auto 1fr 1fr;gap:2.4mm;align-items:start}
+.pairrow2.single{grid-template-columns:auto 1fr 1fr;width:52%;margin:0 auto}
 .pairrow2 .lab{align-self:stretch}
 .fig.view{width:62%;margin:3mm auto 0!important}
 .fig .im.empty{color:var(--p-muted);font-size:8pt}
@@ -492,7 +493,7 @@ const ratioCache=new Map();
 function ratio(d){if(!d)return 4/3;if(ratioCache.has(d))return ratioCache.get(d);ratioCache.set(d,4/3);
   const im=new Image();im.onload=()=>{ratioCache.set(d,im.naturalWidth/im.naturalHeight||4/3);rerender()};im.src=src(d);return 4/3}
 const portrait=d=>!!d&&ratio(d)<0.95;
-const fig=(d,tagHtml,cap,h)=>`<figure class="fig" style="margin:0">${tagHtml||""}${d?`<div class="im" style="aspect-ratio:${ratio(d).toFixed(4)}"><img src="${src(d)}" alt=""></div>`:`<div class="im empty" style="height:${h||"40mm"}">No image</div>`}${cap?`<figcaption>${esc(cap)}</figcaption>`:""}</figure>`;
+const fig=(d,tagHtml,cap,h,fr)=>`<figure class="fig" style="margin:0">${tagHtml||""}${d?`<div class="im" style="aspect-ratio:${(fr||ratio(d)).toFixed(4)}"><img src="${src(d)}" alt=""></div>`:`<div class="im empty" style="height:${h||"40mm"}">No image</div>`}${cap?`<figcaption>${esc(cap)}</figcaption>`:""}</figure>`;
 const GRAPH_NAMES=["3D brightness","2D brightness","PZT movement","Visibility / modulation","Uniform ratio (layer)","Uniform ratio (channel)"];
 function graphRows(t){const g=t.graphs.map((x,i)=>x?fig(x,"",GRAPH_NAMES[i],"56mm"):"").filter(Boolean);const out=[];
   for(let i=0;i<g.length;i+=3)out.push(`<div class="figs3">${g.slice(i,i+3).join("")}</div>`);return out}
@@ -519,8 +520,8 @@ function blocks(){
     add(H(sec.title||"Photos"),{keep:true});
     if(sec.layout==="pair"){
       const pr=sec.items.filter(it=>it.a||it.b).every(it=>portrait(it.b||it.a));
-      const cell=(it,i)=>`<div class="lab">${i+1}</div>${fig(it.b,`<div class="tag before">Before</div>`,it.cap,"60mm")}${fig(it.a,`<div class="tag after">After</div>`,"","60mm")}`;
-      if(pr){for(let i=0;i<sec.items.length;i+=2)add(`<div class="pairrow2">${sec.items.slice(i,i+2).map((it,j)=>cell(it,i+j)).join("")}</div>`)}
+      const cell=(it,i)=>{const fr=ratio(it.b||it.a);return`<div class="lab">${i+1}</div>${fig(it.b,`<div class="tag before">Before</div>`,it.cap,"60mm",fr)}${fig(it.a,`<div class="tag after">After</div>`,"","60mm",fr)}`};
+      if(pr){for(let i=0;i<sec.items.length;i+=2){const ch=sec.items.slice(i,i+2);add(`<div class="pairrow2${ch.length===1?" single":""}">${ch.map((it,j)=>cell(it,i+j)).join("")}</div>`)}}
       else sec.items.forEach((it,i)=>add(`<div class="pairrow">${cell(it,i)}</div>`));
     }else{
       const pr=sec.items.filter(it=>it.a).every(it=>portrait(it.a));const k=pr?3:2;
@@ -529,7 +530,7 @@ function blocks(){
   // channel screenshots
   const shots=S.chShots.slice(0,S.channels);
   if(shots.some(c=>c.a||c.b)){add(H("Channel module","Projection pattern before / after"),{keep:true});
-    shots.forEach((c,i)=>{if(c.a||c.b)add(`<div class="pairrow"><div class="lab">CH ${i+1}</div>${fig(c.b,`<div class="tag before">Before</div>`,"","50mm")}${fig(c.a,`<div class="tag after">After</div>`,"","50mm")}</div>`)})}
+    shots.forEach((c,i)=>{if(c.a||c.b){const fr=ratio(c.b||c.a);add(`<div class="pairrow"><div class="lab">CH ${i+1}</div>${fig(c.b,`<div class="tag before">Before</div>`,"","50mm",fr)}${fig(c.a,`<div class="tag after">After</div>`,"","50mm",fr)}</div>`)}})}
   // after
   add(H("Verification after calibration","Illumination & Z-scale calibrated"),{keep:true,breakBefore:true});
   add(dataTable(S.after));
