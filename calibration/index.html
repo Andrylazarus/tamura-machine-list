@@ -362,6 +362,8 @@ const LOGO="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAVUAAABrCAYAAADHCxFHAA
 const EX={};
 const CLOUD=true;
 const CALL_TYPES=["Installation","Maintenance","Inspection","Production support","Demo","Troubleshooting"];
+const SIGNER="Andry Lasarus";   /* every report is signed by this engineer */
+let canSign=!CLOUD;
 const COMPANY={name:"PT. TAMURA TRADE INDONESIA",addr:"Aerolink, Aeroworld Citra Garden 8 Blok L3 No. 20, Pegadungan, Kalideres, Jakarta Barat 11830, Indonesia",contact:"Tel. +62-21 22305843 · tamura@dnet.net.id"};
 
 let CUSTOMERS=[];
@@ -386,14 +388,14 @@ function blank(){
     chShots:Array.from({length:8},()=>({b:"",a:""})),
     tests:"Functional testing after maintenance and calibration confirmed that the machine operates properly.\nA production program trial run was completed successfully after probe cleaning and calibration.",
     conclusion:"",recommendation:"Perform preventive maintenance and calibration at least once a year.",
-    engineer:"",sig:"",jobDone:"yes",verify:null,verifyOn:true
+    engineer:SIGNER,sig:EX.sig||"",jobDone:"yes",verify:null,verifyOn:true
   };
 }
 function example(){return blank()}
 /* ---------- state ---------- */
 let S;
 const KEY="tamura-cal-report-v1";
-function normalize(s){s=Object.assign(blank(),s);
+function normalize(s){s=Object.assign(blank(),s);s.engineer=SIGNER;if(!s.sig&&EX.sig)s.sig=EX.sig;
   for(const k of["before","after"]){const t=s[k];t.graphs=t.graphs||[];
     if(!t.g6&&t.graphs.length===4)t.graphs=[t.graphs[2],t.graphs[3],t.graphs[0],t.graphs[1]];
     while(t.graphs.length<6)t.graphs.push("");t.g6=1;
@@ -619,7 +621,7 @@ function buildForm(){
   (S.verify?sec("verify","Machine verification report",`<p class="hint" style="margin:0">Read from VerifyReport.html. Before: ${S.verify.before?`${fd(S.verify.before.date)} ${esc(S.verify.before.time)} · ${esc(S.verify.before.sum?S.verify.before.sum.result:"")} · min CMK ${minCmk(S.verify.before)}`:"not found"}<br>After: ${S.verify.after?`${fd(S.verify.after.date)} ${esc(S.verify.after.time)} · ${esc(S.verify.after.sum?S.verify.after.sum.result:"")} · min CMK ${minCmk(S.verify.after)}`:"not found"}</p>
     <div class="checks"><label><input type="checkbox" id="in-verifyOn" data-von="1" ${S.verifyOn?"checked":""}>Include in report</label></div>`):"")+
   sec("concl","Testing, conclusion & recommendation",`${ta("tests","Final testing")}${ta("conclusion","Conclusion")}<button class="btn sm" type="button" id="btn-concl" style="justify-self:start">Write conclusion from the data</button>${ta("recommendation","Recommendation")}`)+
-  sec("sign","Sign-off",`${inp("engineer","Service engineer name")}<div class="slots">${slot("sig","Signature (PNG with transparent background works best)")}</div>
+  sec("sign","Sign-off",`<label class="f">Tamura service engineer<input id="in-engineer" value="${esc(SIGNER)}" readonly></label>${canSign?`<div class="slots">${slot("sig","Signature of "+SIGNER+" (PNG with transparent background works best)")}</div>`:`<p class="hint" style="margin:0">${S.sig?"Signed with the saved signature of "+esc(SIGNER)+".":"No signature saved yet. "+esc(SIGNER)+" uploads it once after logging in."}</p>`}
     <div class="checks"><label><input type="radio" name="jd" id="jd-yes" data-jd="yes" ${S.jobDone==="yes"?"checked":""}>Job completed</label><label><input type="radio" name="jd" id="jd-no" data-jd="no" ${S.jobDone==="no"?"checked":""}>Not completed</label></div>`);
   ed.scrollTop=sc}
 
@@ -798,7 +800,7 @@ fZip.addEventListener("change",async()=>{const f=fZip.files[0];if(!f)return;
 
 /* ---------- online mode: Supabase login, shared customers, personal signature ---------- */
 let sb=null,me=null;
-function cloudSaveEngineer(){if(!CLOUD||!sb||!me)return;
+function cloudSaveEngineer(){if(!CLOUD||!sb||!me||!canSign)return;S.engineer=SIGNER;
   sb.from("cal_engineers").upsert({user_id:me.id,name:S.engineer||"",signature:S.sig||null}).then(r=>{if(r.error)toast("Could not save your signature online: "+r.error.message,6000)})}
 async function cloudLoadCustomers(){const r=await sb.from("cal_customers").select("name,address,contact").order("name");
   if(r.error){toast("Could not load the customer list: "+r.error.message,6000);return}CUSTOMERS=r.data}
@@ -817,8 +819,9 @@ async function cloudEnter(user){me=user;
   document.getElementById("gate").hidden=true;
   document.getElementById("who").hidden=false;document.getElementById("who-email").textContent=user.email+" · "+role;
   await cloudLoadCustomers();
-  const e=await sb.from("cal_engineers").select("name,signature").eq("user_id",user.id).maybeSingle();
-  if(!e.error){S.sig=e.data&&e.data.signature||"";if(e.data&&e.data.name)S.engineer=e.data.name}
+  const e=await sb.from("cal_engineers").select("user_id,name,signature,updated_at").eq("name",SIGNER).order("updated_at",{ascending:false}).limit(1);
+  const row=!e.error&&e.data&&e.data[0]||null;
+  S.engineer=SIGNER;S.sig=row&&row.signature||"";canSign=row?row.user_id===user.id:role==="admin";
   persist();buildForm();render()}
 if(CLOUD){
   document.getElementById("btn-example").hidden=true;
