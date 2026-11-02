@@ -89,3 +89,15 @@ Supabase's free tier keeps the data but does not give you point-in-time restore.
 ## Notes
 - Free Supabase projects **pause after 7 days without activity**. Restore them with one click in the dashboard. Upgrade the plan if the app is used daily.
 - Don't commit Excel files with real data to this repo. `.gitignore` already blocks `*.xlsx`.
+
+---
+
+## Calibration report builder
+
+`calibration/index.html` is the Customer Service Report builder for calibration visits. It is generated from the private `tamura-calibration-report` repository; edit it there and copy the built file here.
+
+- Open it at `https://<your-username>.github.io/tamura-machine-list/calibration/`, or with the **Calibration report** button in the app header.
+- It uses the same logins and roles. Approved users (admin, viewer) can use it, and `pending` accounts see nothing.
+- The customer list and each engineer's signature are stored in Supabase (`cal_customers`, `cal_engineers`) and load only after login. The file itself contains no customer data or signatures.
+- Calibration data from the machine folder is read in the browser only. Nothing is uploaded.
+- The tables are created by `supabase/calibration.sql` in the private `tamura-calibration-report` repository. Run it once in the SQL Editor.
