@@ -278,6 +278,7 @@ table.ht,table.ft{width:100%;border-collapse:collapse;font-family:Arial,"Liberat
 .gate-card .actions{display:flex;gap:8px;flex-wrap:wrap}
 .gate-msg{margin:0;font-size:13px;color:var(--danger)}
 .gate-card a{color:var(--accent)}
+.ml-box{display:grid;gap:6px;border:1px solid var(--line);border-radius:7px;padding:10px;background:var(--field)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .seg .btn{border:0;border-radius:0;background:transparent}
 .seg .btn.on{background:var(--accent);color:var(--accent-ink)}
@@ -663,7 +664,7 @@ function buildForm(){
   (S.verify?sec("verify","Machine verification report",`<p class="hint" style="margin:0">Read from VerifyReport.html. Before: ${S.verify.before?`${fd(S.verify.before.date)} ${esc(S.verify.before.time)} · ${esc(S.verify.before.sum?S.verify.before.sum.result:"")} · min CMK ${minCmk(S.verify.before)}`:"not found"}<br>After: ${S.verify.after?`${fd(S.verify.after.date)} ${esc(S.verify.after.time)} · ${esc(S.verify.after.sum?S.verify.after.sum.result:"")} · min CMK ${minCmk(S.verify.after)}`:"not found"}</p>
     <div class="checks"><label><input type="checkbox" id="in-verifyOn" data-von="1" ${S.verifyOn?"checked":""}>Include in report</label></div>`):"")+
   sec("concl","Testing, conclusion & recommendation",`${ta("tests","Final testing")}${ta("conclusion","Conclusion")}<button class="btn sm" type="button" id="btn-concl" style="justify-self:start">Write conclusion from the data</button>${ta("recommendation","Recommendation")}`)+
-  sec("cert","Certificate of calibration",`<p class="hint" style="margin:0">Filled from the report: serial ${esc(S.serial||"–")}, model ${esc(S.model||"–")}, target ${esc(S.spec.jigSN||"–")}. Click <b>Certificate</b> at the top to see and print it.</p>
+  sec("cert","Certificate of calibration",`${CLOUD?`<div class="ml-box"><div class="sub" style="margin:0">Tamura Machine List</div><p class="hint" id="ml-status" style="margin:0">${mlStatusText()}</p><button class="btn sm" type="button" id="btn-ml" style="justify-self:start">Update calibration dates in Machine List</button></div>`:""}<p class="hint" style="margin:0">Filled from the report: serial ${esc(S.serial||"–")}, model ${esc(S.model||"–")}, target ${esc(S.spec.jigSN||"–")}. Click <b>Certificate</b> at the top to see and print it.</p>
     <div class="row">${inp("cert.date","Calibration date",{type:"date"})}<label class="f">Next calibration<input id="in-certnext" value="${esc(LONG(nextCal(certDate())))}" readonly></label></div>
     <p class="hint" style="margin:0">Leave the calibration date empty to use the visit end date (${esc(LONG(S.dateTo||S.date)||"–")}).</p>
     <div class="row">${inp("cert.signer","Signed by")}${inp("cert.title","Title")}</div>
@@ -675,7 +676,7 @@ function buildForm(){
 /* ---------- events ---------- */
 const ed=document.getElementById("editor");
 ed.addEventListener("input",e=>{const t=e.target;
-  if(t.dataset.k){set(t.dataset.k,t.value);if(t.dataset.k==="cert.date"||t.dataset.k==="dateTo"){const n=document.getElementById("in-certnext");if(n)n.value=LONG(nextCal(certDate()))}if(t.dataset.k==="engineer"){clearTimeout(cloudSaveEngineer.t);cloudSaveEngineer.t=setTimeout(cloudSaveEngineer,900)}if(t.dataset.chk)t.classList.toggle("bad",chk(t.dataset.chk,t.value,flagFor(t.dataset.k))===false);
+  if(t.dataset.k){set(t.dataset.k,t.value);if(CLOUD&&["serial","cert.date","dateTo","date"].includes(t.dataset.k)){clearTimeout(mlLookup.t);mlLookup.t=setTimeout(mlLookup,700)}if(t.dataset.k==="cert.date"||t.dataset.k==="dateTo"){const n=document.getElementById("in-certnext");if(n)n.value=LONG(nextCal(certDate()))}if(t.dataset.k==="engineer"){clearTimeout(cloudSaveEngineer.t);cloudSaveEngineer.t=setTimeout(cloudSaveEngineer,900)}if(t.dataset.chk)t.classList.toggle("bad",chk(t.dataset.chk,t.value,flagFor(t.dataset.k))===false);
     if(t.dataset.k.startsWith("spec."))ed.querySelectorAll("[data-chk]").forEach(x=>x.classList.toggle("bad",chk(x.dataset.chk,x.value,flagFor(x.dataset.k))===false));
     persist();rerender()}});
 ed.addEventListener("change",e=>{const t=e.target;
@@ -698,6 +699,7 @@ ed.addEventListener("click",e=>{const t=e.target;
   else if(t.id==="btn-savecust"){if(!S.customer.trim()){toast("Type the customer name first");return}
     const c=customList().filter(x=>ckey(x.name)!==ckey(S.customer));c.push({name:S.customer.trim(),address:S.address,contact:S.contact});
     try{localStorage.setItem(CKEY,JSON.stringify(c));buildForm();toast("Saved "+S.customer+" to the customer list")}catch(e){toast("Could not save the customer list in this browser")}}
+  else if(t.id==="btn-ml"){mlUpdate(false)}
   else if(t.id==="btn-addsec"){S.photoSections.push({title:"New section",layout:"pair",items:[{a:"",b:"",cap:""}]});openSecs.add("photos");buildForm();persist();rerender()}
   else if(t.id==="btn-gen"){const R=["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];const d=new Date(S.date||Date.now());
     const seq=(String(S.reportNo).match(/^\d+/)||["001"])[0].padStart(3,"0");S.reportNo=`${seq}/TTI-AL/${R[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
@@ -716,8 +718,8 @@ let newArm=0;document.getElementById("btn-new").onclick=e=>{const b=e.currentTar
 document.getElementById("btn-example").onclick=()=>{S=Object.assign(example(),{style:S.style||"a"});buildForm();persist();render();toast("Loaded the example report")};
 document.getElementById("btn-save").onclick=()=>{try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:"application/json"}));a.download=fileBase()+".json";document.body.appendChild(a);a.click();a.remove();toast("Saved "+fileBase()+".json")}catch(e){toast("Saving needs the downloaded HTML file")}};
 const fJ=document.getElementById("file-json");document.getElementById("btn-open").onclick=()=>{fJ.value="";fJ.click()};
-fJ.addEventListener("change",()=>{const f=fJ.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);S=normalize(d);buildForm();persist();render();toast("Opened "+f.name)}catch(e){toast("That file is not report data (.json)")}})});
-document.getElementById("btn-print").onclick=()=>{const old=document.title;document.title=fileBase();render();setTimeout(()=>{window.print();setTimeout(()=>document.title=old,500)},250)};
+fJ.addEventListener("change",()=>{const f=fJ.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);S=normalize(d);buildForm();persist();render();mlLookup();toast("Opened "+f.name)}catch(e){toast("That file is not report data (.json)")}})});
+document.getElementById("btn-print").onclick=()=>{if(CLOUD&&me)mlUpdate(true);const old=document.title;document.title=fileBase();render();setTimeout(()=>{window.print();setTimeout(()=>document.title=old,500)},250)};
 
 /* ---------- import from machine folder ---------- */
 function parseBright(txt){const out={d3:[],d2:[],count:0};const L=txt.split(/\r?\n/);
@@ -836,7 +838,7 @@ function genConclusion(){const p=S.spec,tol=p.jigH*p.jigTol/100,L=[];
     if(ca!==null)L.push(`Machine verification (KYCal): height ${V.after.sum?V.after.sum.result:""} after calibration with minimum CMK ${ca.toFixed(2)}${cb!==null?` (before: ${cb.toFixed(2)})`:""}, showing ${cb!==null&&ca>cb?"improved":"stable"} measurement repeatability.`)}
   return L.join("\n")}
 async function runImport(entries,label){toast("Reading "+label+"…",60000);
-  try{const r=await importEntries(entries);openSecs=new Set(["info","cust","before","after"]);buildForm();persist();render();
+  try{const r=await importEntries(entries);openSecs=new Set(["info","cust","before","after"]);buildForm();persist();render();mlLookup();
     toast(`Imported ${r.root||label}.${r.notes.length?" Check: "+r.notes.join(" · "):" All data and photos loaded."}`,r.notes.length?9000:4000)}
   catch(e){console.error(e);toast(e.message||"Could not read that folder",9000)}}
 const fDir=document.getElementById("file-dir"),fZip=document.getElementById("file-zip");
@@ -850,6 +852,32 @@ fZip.addEventListener("change",async()=>{const f=fZip.files[0];if(!f)return;
 
 /* ---------- online mode: Supabase login, shared customers, personal signature ---------- */
 let sb=null,me=null;
+/* ---------- Tamura Machine List: calibration dates ---------- */
+let ml={state:"idle",rows:[],updated:null,err:""};
+const D10=v=>v?LONG(String(v).slice(0,10)):"–";
+function mlStatusText(){const s=(S.serial||"").trim(),d=certDate();
+  if(!s)return"Enter the serial number to find the machine.";
+  if(ml.state==="loading")return"Looking up "+esc(s)+"…";
+  if(ml.state==="error")return"Could not read Machine List: "+esc(ml.err);
+  if(ml.state!=="found")return"";
+  if(!ml.rows.length)return`<b>${esc(s)}</b> is not in Machine List, so no dates will be updated. Check the serial number.`;
+  const m=ml.rows[0];const now=`last calibration ${D10(m.last_cal)}, next ${D10(m.next_cal)}`;
+  const will=`${D10(d)} → next ${D10(nextCal(d))}`;
+  const same=String(m.last_cal||"").slice(0,10)===d&&String(m.next_cal||"").slice(0,10)===nextCal(d);
+  return`${esc([m.customer,m.line,m.model].filter(Boolean).join(" · "))}: ${now}.${ml.rows.length>1?` (${ml.rows.length} machines have this serial.)`:""}<br>${same?"✓ Up to date.":"On Print / PDF this becomes "+will+"."}`}
+function mlShow(){const el=document.getElementById("ml-status");if(el)el.innerHTML=mlStatusText()}
+async function mlLookup(){if(!CLOUD||!sb||!me)return;const s=(S.serial||"").trim();if(!s){ml={state:"idle",rows:[]};mlShow();return}
+  ml.state="loading";mlShow();
+  const r=await sb.from("machines").select("customer,line,model,serial,last_cal,next_cal").ilike("serial",s.replace(/[%_]/g,"\\$&"));
+  if((S.serial||"").trim()!==s)return;
+  if(r.error){ml={state:"error",rows:[],err:r.error.message}}else ml={state:"found",rows:r.data||[]};mlShow()}
+async function mlUpdate(quiet){if(!CLOUD||!sb||!me)return;const s=(S.serial||"").trim(),d=certDate();
+  if(!s||!d){if(!quiet)toast("Fill in the serial number and calibration date first");return}
+  const r=await sb.rpc("cal_update_machine_dates",{p_serial:s,p_last:d,p_next:nextCal(d)});
+  if(r.error){toast("Machine List not updated: "+r.error.message,8000);return}
+  const n=(r.data||[]).length;
+  if(!n){toast(s+" is not in Machine List, so no dates were updated. Check the serial number.",8000);await mlLookup();return}
+  toast(`Machine List updated: ${s} last calibration ${D10(d)}, next ${D10(nextCal(d))}`,6000);await mlLookup()}
 function cloudSaveCertSig(){if(!CLOUD||!sb||!me||!certAdmin)return;
   sb.from("cal_assets").upsert({key:"cert_signature",data:S.cert.sig||null}).then(r=>{if(r.error)toast("Could not save the certificate signature online: "+r.error.message,6000)})}
 function cloudSaveEngineer(){if(!CLOUD||!sb||!me||!canSign)return;S.engineer=SIGNER;
@@ -870,7 +898,7 @@ async function cloudEnter(user){me=user;
   if(role!=="admin"&&role!=="viewer"){gateShow("pending");return}
   document.getElementById("gate").hidden=true;
   document.getElementById("who").hidden=false;document.getElementById("who-email").textContent=user.email+" · "+role;
-  await cloudLoadCustomers();
+  await cloudLoadCustomers();mlLookup();
   const e=await sb.from("cal_engineers").select("user_id,name,signature,updated_at").eq("name",SIGNER).order("updated_at",{ascending:false}).limit(1);
   const row=!e.error&&e.data&&e.data[0]||null;
   S.engineer=SIGNER;S.sig=row&&row.signature||"";canSign=row?row.user_id===user.id:role==="admin";
