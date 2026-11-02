@@ -164,6 +164,7 @@ table.dt{width:100%;border-collapse:separate;border-spacing:0;font-variant-numer
 .figs3{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}
 .pairrow2{display:grid;grid-template-columns:auto 1fr 1fr auto 1fr 1fr;gap:2.4mm;align-items:start}
 .pairrow2.single{grid-template-columns:auto 1fr 1fr;width:52%;margin:0 auto}
+.pairrow.sq{width:80%;margin:0 auto}
 .pairrow2 .lab{align-self:stretch}
 .fig.view{width:62%;margin:3mm auto 0!important}
 .fig .im.empty{color:var(--p-muted);font-size:8pt}
@@ -493,6 +494,8 @@ const ratioCache=new Map();
 function ratio(d){if(!d)return 4/3;if(ratioCache.has(d))return ratioCache.get(d);ratioCache.set(d,4/3);
   const im=new Image();im.onload=()=>{ratioCache.set(d,im.naturalWidth/im.naturalHeight||4/3);rerender()};im.src=src(d);return 4/3}
 const portrait=d=>!!d&&ratio(d)<0.95;
+/* one frame shape for a before/after pair: the photos' own shape when both match, a square when one is portrait and the other landscape */
+function pairRatio(b,a){if(b&&a&&(ratio(b)<1)!==(ratio(a)<1))return 1;return ratio(b||a)}
 const fig=(d,tagHtml,cap,h,fr)=>`<figure class="fig" style="margin:0">${tagHtml||""}${d?`<div class="im" style="aspect-ratio:${(fr||ratio(d)).toFixed(4)}"><img src="${src(d)}" alt=""></div>`:`<div class="im empty" style="height:${h||"40mm"}">No image</div>`}${cap?`<figcaption>${esc(cap)}</figcaption>`:""}</figure>`;
 const GRAPH_NAMES=["3D brightness","2D brightness","PZT movement","Visibility / modulation","Uniform ratio (layer)","Uniform ratio (channel)"];
 function graphRows(t){const g=t.graphs.map((x,i)=>x?fig(x,"",GRAPH_NAMES[i],"56mm"):"").filter(Boolean);const out=[];
@@ -519,10 +522,10 @@ function blocks(){
     if(!sec.items.length)return;
     add(H(sec.title||"Photos"),{keep:true});
     if(sec.layout==="pair"){
-      const pr=sec.items.filter(it=>it.a||it.b).every(it=>portrait(it.b||it.a));
-      const cell=(it,i)=>{const fr=ratio(it.b||it.a);return`<div class="lab">${i+1}</div>${fig(it.b,`<div class="tag before">Before</div>`,it.cap,"60mm",fr)}${fig(it.a,`<div class="tag after">After</div>`,"","60mm",fr)}`};
+      const pr=sec.items.filter(it=>it.a||it.b).every(it=>pairRatio(it.b,it.a)<0.95);
+      const cell=(it,i)=>{const fr=pairRatio(it.b,it.a);return`<div class="lab">${i+1}</div>${fig(it.b,`<div class="tag before">Before</div>`,it.cap,"60mm",fr)}${fig(it.a,`<div class="tag after">After</div>`,"","60mm",fr)}`};
       if(pr){for(let i=0;i<sec.items.length;i+=2){const ch=sec.items.slice(i,i+2);add(`<div class="pairrow2${ch.length===1?" single":""}">${ch.map((it,j)=>cell(it,i+j)).join("")}</div>`)}}
-      else sec.items.forEach((it,i)=>add(`<div class="pairrow">${cell(it,i)}</div>`));
+      else sec.items.forEach((it,i)=>add(`<div class="pairrow${pairRatio(it.b,it.a)>=0.95&&pairRatio(it.b,it.a)<=1.05?" sq":""}">${cell(it,i)}</div>`));
     }else{
       const pr=sec.items.filter(it=>it.a).every(it=>portrait(it.a));const k=pr?3:2;
       for(let i=0;i<sec.items.length;i+=k){add(`<div class="${pr?"figs3":"figs"}">${sec.items.slice(i,i+k).map(it=>fig(it.a,"",it.cap,"70mm")).join("")}</div>`)}
@@ -530,7 +533,7 @@ function blocks(){
   // channel screenshots
   const shots=S.chShots.slice(0,S.channels);
   if(shots.some(c=>c.a||c.b)){add(H("Channel module","Projection pattern before / after"),{keep:true});
-    shots.forEach((c,i)=>{if(c.a||c.b){const fr=ratio(c.b||c.a);add(`<div class="pairrow"><div class="lab">CH ${i+1}</div>${fig(c.b,`<div class="tag before">Before</div>`,"","50mm",fr)}${fig(c.a,`<div class="tag after">After</div>`,"","50mm",fr)}</div>`)}})}
+    shots.forEach((c,i)=>{if(c.a||c.b){const fr=pairRatio(c.b,c.a);add(`<div class="pairrow"><div class="lab">CH ${i+1}</div>${fig(c.b,`<div class="tag before">Before</div>`,"","50mm",fr)}${fig(c.a,`<div class="tag after">After</div>`,"","50mm",fr)}</div>`)}})}
   // after
   add(H("Verification after calibration","Illumination & Z-scale calibrated"),{keep:true,breakBefore:true});
   add(dataTable(S.after));
