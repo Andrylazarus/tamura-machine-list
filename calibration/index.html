@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tamura Calibration Report</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
@@ -23,6 +28,7 @@
   --bg:#0e1120; --panel:#161a2b; --ink:#e5e8f3; --muted:#9aa1bb; --line:#2a3049; --field:#1e2337;
   --accent:#8b9dff; --accent-ink:#0e1120; --danger:#ff7a7f; --ok:#5fd394; color-scheme:dark}
 [hidden]{display:none!important}
+body{margin:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-sans);font-size:14px}
 *{box-sizing:border-box}
@@ -191,7 +197,7 @@ table.dt{width:100%;border-collapse:separate;border-spacing:0;font-variant-numer
 .hd1 .ttl,.hdn .ttl{font-weight:700;font-size:13pt;margin-top:3.5mm;color:#000;font-family:Arial,"Liberation Sans",sans-serif}
 .hd1 .r{display:flex;flex-direction:column;align-items:flex-end;gap:7mm}
 .hd1 .r img{height:11mm;margin-right:6mm}
-.rn{border-collapse:collapse;font-size:10pt;margin-right:8mm}
+.rn{border-collapse:collapse;font-size:10pt;margin-right:8mm;color:#000}
 .rn td{padding:.3mm 1.5mm}
 .rn td:last-child{font-family:Calibri,Carlito,Arial,sans-serif;font-size:11pt;padding-left:3mm}
 .hdn{display:flex;justify-content:space-between;align-items:flex-end;padding:0 1mm 2.5mm;color:#000}
@@ -838,3 +844,5 @@ document.getElementById("tab-prev").onclick=()=>{wrap.dataset.view="preview";fit
 buildForm();
 (document.fonts?document.fonts.ready:Promise.resolve()).then(render);render();
 </script>
+
+</html>
