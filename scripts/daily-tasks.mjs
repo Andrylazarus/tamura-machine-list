@@ -42,7 +42,10 @@ function dueText(t) {
   return `Due ${short(t.due)}`;
 }
 const urgent = (t) => { const n = left(t); return n != null && n <= SOON; };
-const sortTasks = (a, b) => (a.due || "9999").localeCompare(b.due || "9999") || ({ high: 0, medium: 1, low: 2 }[a.priority] - { high: 0, medium: 1, low: 2 }[b.priority]);
+const RANK = { high: 0, medium: 1, low: 2 };
+const PRI_COLOR = { high: "#c2412d", medium: "#b7791f", low: "#1d8a5b" };
+// High priority first, then the nearest due date
+const sortTasks = (a, b) => (RANK[a.priority] ?? 1) - (RANK[b.priority] ?? 1) || (a.due || "9999").localeCompare(b.due || "9999");
 
 const [tasks, profiles] = await Promise.all([
   api("tasks?select=*&status=in.(todo,progress)"),
@@ -56,10 +59,10 @@ function rowHtml(t, showWho) {
   const n = left(t);
   const color = n != null && n < 0 ? "#c2412d" : urgent(t) ? "#b7791f" : "#5d6b7e";
   const who = showWho ? (emailOf[t.assignee] ? name(emailOf[t.assignee]) : t.assignee_label || "Unassigned") : "";
-  return `<tr><td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top;font-family:Consolas,monospace;font-size:12px;color:#5d6b7e;white-space:nowrap">${esc(code(t))}</td>
+  const pc = PRI_COLOR[t.priority] || PRI_COLOR.medium;
+  return `<tr><td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top;white-space:nowrap"><span style="display:inline-block;padding:2px 8px;border-radius:10px;border:1px solid ${pc};color:${pc};font-size:11px;font-weight:700;letter-spacing:.04em">${esc((PRI[t.priority] || "Medium").toUpperCase())}</span><br><span style="font-family:Consolas,monospace;font-size:11px;color:#5d6b7e">${esc(code(t))}</span></td>
 <td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top"><b>${esc(t.title)}</b>${t.customer ? `<br><span style="font-size:12px;color:#5d6b7e">${esc(t.customer)}</span>` : ""}${who ? `<br><span style="font-size:12px;color:#5d6b7e">${esc(who)}</span>` : ""}</td>
-<td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top;white-space:nowrap;color:${color};font-weight:${urgent(t) ? 700 : 400}">${esc(dueText(t))}</td>
-<td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top;font-size:12px">${esc(PRI[t.priority] || "")}</td></tr>`;
+<td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top;white-space:nowrap;color:${color};font-weight:${urgent(t) ? 700 : 400}">${esc(dueText(t))}</td></tr>`;
 }
 function section(title, list, showWho) {
   if (!list.length) return "";
@@ -68,14 +71,15 @@ function section(title, list, showWho) {
 }
 function textList(title, list, showWho) {
   if (!list.length) return "";
-  return `\n${title} (${list.length})\n` + list.map((t) => `- ${code(t)} ${t.title} | ${dueText(t)}${showWho ? " | " + (emailOf[t.assignee] ? name(emailOf[t.assignee]) : t.assignee_label || "Unassigned") : ""}${t.customer ? " | " + t.customer : ""}`).join("\n") + "\n";
+  return `\n${title} (${list.length})\n` + list.map((t) => `- [${(PRI[t.priority] || "Medium").toUpperCase()}] ${code(t)} ${t.title} | ${dueText(t)}${showWho ? " | " + (emailOf[t.assignee] ? name(emailOf[t.assignee]) : t.assignee_label || "Unassigned") : ""}${t.customer ? " | " + t.customer : ""}`).join("\n") + "\n";
 }
 function buildEmail(greetName, list, showWho) {
   list = list.slice().sort(sortTasks);
   const soon = list.filter(urgent);
   const progress = list.filter((t) => t.status === "progress" && !urgent(t));
   const todo = list.filter((t) => t.status === "todo" && !urgent(t));
-  const subject = `Tasks for ${short(today)}: ${list.length} open${soon.length ? `, ${soon.length} due soon` : ""}`;
+  const high = list.filter((t) => t.priority === "high").length;
+  const subject = `Tasks for ${short(today)}: ${list.length} open${high ? `, ${high} high priority` : ""}${soon.length ? `, ${soon.length} due soon` : ""}`;
   const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#16202e;max-width:640px">
 <p style="margin:0 0 4px;font-size:12px;color:#5d6b7e;letter-spacing:.08em;text-transform:uppercase">PT. Tamura Trade Indonesia · Team Task Board</p>
 <h2 style="margin:0 0 4px;font-size:20px">Good morning${greetName ? ", " + esc(greetName) : ""}</h2>
