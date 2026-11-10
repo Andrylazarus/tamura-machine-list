@@ -27,6 +27,9 @@ async function api(path) {
 }
 
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+const WEEK_DAYS = 7;
+const addDays = (d, n) => new Date(Date.parse(d + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+const weekEnd = addDays(today, WEEK_DAYS - 1);
 const dayNum = (s) => Date.UTC(...s.split("-").map((x, i) => Number(x) - (i === 1 ? 1 : 0))) / 86400000;
 const left = (t) => (t.due ? dayNum(t.due) - dayNum(today) : null);
 const short = (s) => new Date(s + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -53,7 +56,7 @@ const sortTasks = (a, b) => (RANK[a.priority] ?? 1) - (RANK[b.priority] ?? 1) ||
 const [openRows, profiles, todayRows] = await Promise.all([
   api("tasks?select=*&status=in.(todo,progress)"),
   api("profiles?select=id,email,role"),
-  api(`tasks?select=*&kind=eq.activity&due=eq.${today}&order=start_time.asc.nullsfirst`).catch((e) => { console.log("Could not read activities (run the activities part of supabase/tasks.sql): " + e.message.slice(0, 200)); return []; })
+  api(`tasks?select=*&kind=eq.activity&due=gte.${today}&due=lte.${weekEnd}&order=due.asc,start_time.asc.nullsfirst`).catch((e) => { console.log("Could not read activities (run the activities part of supabase/tasks.sql): " + e.message.slice(0, 200)); return []; })
 ]);
 const tasks = openRows.filter((t) => t.kind !== "activity");
 const activities = todayRows;
@@ -99,26 +102,37 @@ function partHeader(title, sub) {
   return `<tr><td style="padding:28px 28px 0;${FONT}">
   <div style="font-size:16px;font-weight:700;color:${C.ink};border-bottom:2px solid ${C.ink};padding-bottom:6px">${esc(title)}${sub ? ` <span style="font-size:12px;font-weight:500;color:${C.muted}">${esc(sub)}</span>` : ""}</div></td></tr>`;
 }
-function scheduleHtml(list, showWho) {
-  if (!list.length) return `<tr><td style="padding:14px 28px 0;${FONT}font-size:13px;color:${C.muted}">No activities scheduled for today. <a href="${esc(SCHEDULE_URL)}" style="color:${C.accent};text-decoration:none">Open schedule →</a></td></tr>`;
-  const rows = list.map((a) => {
-    const who = emailOf[a.assignee] ? name(emailOf[a.assignee]) : a.assignee_label || "";
-    const meta = [a.customer, showWho ? who : "", a.category].filter(Boolean).map(esc).join(" &nbsp;·&nbsp; ");
-    return `<tr>
+function actRow(a, showWho) {
+  const who = emailOf[a.assignee] ? name(emailOf[a.assignee]) : a.assignee_label || "";
+  const meta = [a.customer, showWho ? who : "", a.category].filter(Boolean).map(esc).join(" &nbsp;·&nbsp; ");
+  return `<tr>
 <td width="4" bgcolor="${C.accent}" style="background:${C.accent};width:4px;font-size:0;line-height:0">&nbsp;</td>
-<td width="110" valign="top" style="padding:12px 6px 12px 14px;border-bottom:1px solid ${C.line};${FONT}font-size:13px;font-weight:700;color:${C.accent};white-space:nowrap">${esc(timeRange(a))}</td>
-<td style="padding:12px 14px 12px 6px;border-bottom:1px solid ${C.line};${FONT}">
+<td width="104" valign="top" style="padding:10px 6px 10px 12px;border-bottom:1px solid ${C.line};${FONT}font-size:12.5px;font-weight:700;color:${C.accent};white-space:nowrap">${esc(timeRange(a))}</td>
+<td style="padding:10px 12px 10px 6px;border-bottom:1px solid ${C.line};${FONT}">
   <div style="font-size:14px;font-weight:600;color:${C.ink};line-height:1.35">${esc(a.title)}</div>
-  ${meta ? `<div style="font-size:12px;color:${C.muted};padding-top:3px">${meta}</div>` : ""}
-  ${a.details ? `<div style="font-size:12px;color:${C.muted};padding-top:4px;white-space:pre-wrap">${esc(a.details.slice(0, 240))}</div>` : ""}
+  ${meta ? `<div style="font-size:12px;color:${C.muted};padding-top:2px">${meta}</div>` : ""}
+  ${a.details ? `<div style="font-size:12px;color:${C.muted};padding-top:3px;white-space:pre-wrap">${esc(a.details.slice(0, 200))}</div>` : ""}
 </td></tr>`;
+}
+function scheduleHtml(list, showWho) {
+  const days = [];
+  for (let i = 0; i < WEEK_DAYS; i++) days.push(addDays(today, i));
+  const label = (d, i) => {
+    const nice = new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
+    return i === 0 ? `Today · ${nice}` : i === 1 ? `Tomorrow · ${nice}` : nice;
+  };
+  const blocks = days.map((d, i) => {
+    const items = list.filter((a) => a.due === d);
+    const head = `<tr><td colspan="3" bgcolor="${i === 0 ? "#eaf0fc" : "#f7f9fc"}" style="background:${i === 0 ? "#eaf0fc" : "#f7f9fc"};padding:8px 12px;border-bottom:1px solid ${C.line};${FONT}font-size:12px;font-weight:700;color:${i === 0 ? C.accent : C.ink}">${esc(label(d, i))}${items.length ? ` <span style="color:${C.muted};font-weight:500">&nbsp;${items.length}</span>` : ""}</td></tr>`;
+    const body = items.length
+      ? `<tr><td colspan="3" style="padding:0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">${items.map((a) => actRow(a, showWho)).join("")}</table></td></tr>`
+      : `<tr><td colspan="3" style="padding:8px 12px;border-bottom:1px solid ${C.line};${FONT}font-size:12px;color:#9aa3b2">No activities</td></tr>`;
+    return head + body;
   }).join("");
-  return `<tr><td style="padding:22px 28px 0">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
-  <tr><td style="${FONT}font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${C.accent};padding-bottom:8px">Today &nbsp;<span style="color:${C.muted};font-weight:500">${list.length}</span></td>
-  <td align="right" style="${FONT}font-size:12px;padding-bottom:8px"><a href="${esc(SCHEDULE_URL)}" style="color:${C.accent};text-decoration:none">Full schedule →</a></td></tr>
-</table>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid ${C.line};border-radius:6px;background:#f7f9ff">${rows}</table></td></tr>`;
+  return `<tr><td style="padding:14px 28px 0">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid ${C.line}">${blocks}</table>
+<div style="${FONT}font-size:12px;padding-top:8px;text-align:right"><a href="${esc(SCHEDULE_URL)}" style="color:${C.accent};text-decoration:none">Open schedule →</a></div>
+</td></tr>`;
 }
 function stat(label, value, color) {
   return `<td width="25%" align="center" style="padding:14px 4px;${FONT}">
@@ -135,7 +149,8 @@ function buildEmail(greetName, list, showWho, acts = []) {
   const progress = list.filter((t) => t.status === "progress" && !urgent(t));
   const todo = list.filter((t) => t.status === "todo" && !urgent(t));
   const high = list.filter((t) => t.priority === "high").length;
-  const subject = `Schedule & tasks for ${short(today)}: ${acts.length} ${acts.length === 1 ? "activity" : "activities"} today, ${list.length} open task${list.length === 1 ? "" : "s"}${high ? `, ${high} high priority` : ""}${soon.length ? `, ${soon.length} due soon` : ""}`;
+  const todayCount = acts.filter((a) => a.due === today).length;
+  const subject = `Schedule & tasks for ${short(today)}: ${todayCount} today, ${acts.length} this week, ${list.length} open task${list.length === 1 ? "" : "s"}${high ? `, ${high} high priority` : ""}${soon.length ? `, ${soon.length} due soon` : ""}`;
   const overdue = list.filter((t) => left(t) != null && left(t) < 0).length;
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.bg}">
@@ -148,8 +163,8 @@ function buildEmail(greetName, list, showWho, acts = []) {
     <div style="font-size:20px;font-weight:700;color:#ffffff;padding-top:6px">Daily Schedule &amp; Tasks</div>
     <div style="font-size:13px;color:#c9d5e8;padding-top:4px">${esc(longDate)}</div>
   </td></tr>
-  <tr><td style="padding:22px 28px 0;${FONT}font-size:14px;color:${C.ink}">Good morning${greetName ? ", " + esc(greetName) : ""}. Here is today's schedule and your open tasks.</td></tr>
-  ${partHeader("1. Schedule", "activities today")}
+  <tr><td style="padding:22px 28px 0;${FONT}font-size:14px;color:${C.ink}">Good morning${greetName ? ", " + esc(greetName) : ""}. Here is your schedule for the week and your open tasks.</td></tr>
+  ${partHeader("1. Schedule", "this week")}
   ${scheduleHtml(acts, showWho)}
   ${partHeader("2. Tasks", list.length ? `${list.length} open` : "")}
   ${list.length ? `  <tr><td style="padding:14px 28px 0">
@@ -174,7 +189,7 @@ function buildEmail(greetName, list, showWho, acts = []) {
 </td></tr></table>
 </body></html>`;
   const text = `Good morning${greetName ? ", " + greetName : ""}. ${longDate}\n` +
-    `\n== 1. SCHEDULE (today) ==\n` + (acts.length ? acts.map((a) => `- ${timeRange(a)}  ${a.title}${a.customer ? " | " + a.customer : ""}`).join("\n") : "No activities today.") + "\n" +
+    `\n== 1. SCHEDULE (this week) ==\n` + (acts.length ? acts.map((a) => `- ${short(a.due)}  ${timeRange(a)}  ${a.title}${a.customer ? " | " + a.customer : ""}`).join("\n") : "No activities this week.") + "\n" +
     `\n== 2. TASKS (${list.length} open) ==\n` + (list.length ? "" : "No open tasks.\n") +
     textList(`DUE WITHIN ${SOON} DAYS OR OVERDUE`, soon, showWho) + textList("IN PROGRESS", progress, showWho) + textList("TO DO", todo, showWho) +
     `\nOpen the task board: ${BOARD_URL}\n`;
@@ -191,7 +206,7 @@ async function send(to, mail) {
   console.log(`- emailed ${to}: ${mail.subject}`);
 }
 
-console.log(`${today}: ${activities.length} activity(ies) today, ${tasks.length} open task(s)${DRY ? " (dry run, nothing is sent)" : ""}.`);
+console.log(`${today}: ${activities.length} activity(ies) this week, ${tasks.length} open task(s)${DRY ? " (dry run, nothing is sent)" : ""}.`);
 let failed = 0;
 for (const p of people) {
   const mine = tasks.filter((t) => ownerOf(t) === p.id);
