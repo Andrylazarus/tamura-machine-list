@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Team Schedule</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
+<script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+<script src="../js/config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../tasks/board.css">
+</head>
+<body data-page="schedule">
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <h1>Team Schedule</h1>
+    <form id="gate-login" hidden>
+      <label>Email<input id="g-email" type="email" autocomplete="username" required></label>
+      <label>Password<input id="g-pass" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary" id="g-btn" type="submit">Log in</button>
+    </form>
+    <div id="gate-pending" hidden>
+      <p style="margin:0 0 10px">Your account is waiting for approval. Ask an administrator to set your role to viewer or admin in Machine List → Users.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="g-again" type="button">Check again</button><button class="btn" id="g-out" type="button">Log out</button></div>
+    </div>
+    <p class="gate-msg" id="gate-msg" hidden></p>
+    <p class="gate-hint">Use the same account as Tamura Machine List. First time, or forgot your password? <a href="../">Set it on the Machine List page</a>.</p>
+  </div>
+</div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="org">PT. Tamura Trade Indonesia · Service Team</span>
+      <h1>Team Schedule</h1>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div class="me" id="me"></div>
+      <a class="btn nav-link" href="../tasks/">Task board</a>
+      <a class="btn" href="../">Machine List</a>
+      <button class="btn" type="button" id="logoutBtn">Log out</button>
+      <button class="btn primary" id="newBtn" type="button">+ New</button>
+    </div>
+  </header>
+
+  <div class="notice" id="notice" hidden></div>
+
+  <section class="stats" aria-label="Summary">
+    <div class="stat stat-today"><span class="k">Today</span><span class="v" id="sToday">–</span></div>
+    <div class="stat"><span class="k">Tomorrow</span><span class="v" id="sTomorrow">–</span></div>
+    <div class="stat"><span class="k">Next 7 days</span><span class="v" id="sWeek">–</span></div>
+    <div class="stat warn"><span class="k">Deadlines in 7 days</span><span class="v" id="sDeadlines">–</span></div>
+  </section>
+
+  <div class="toolbar">
+    <input type="search" class="field" id="q" placeholder="Search activities, customers, places…" aria-label="Search the schedule">
+    <select class="field" id="fWho" aria-label="Assigned to">
+      <option value="">Everyone</option>
+    </select>
+    <select class="field" id="fCat" aria-label="Category">
+      <option value="">Category: all</option>
+    </select>
+    <select class="field" id="fPri" aria-label="Priority" hidden>
+      <option value="">Priority: all</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+    <label class="check"><input type="checkbox" id="fDeadlines" checked> Show task deadlines</label>
+  </div>
+
+  <main id="main"></main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dTitle">
+  <div class="d-head">
+    <h2 id="dTitle">New task</h2>
+    <button class="btn" type="button" id="dClose">Close</button>
+  </div>
+  <form class="d-body" id="form" autocomplete="off">
+    <div class="row" style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+      <span class="code" id="dCode"></span>
+      <a class="cal-link" id="calLink" href="#" target="_blank" rel="noopener" hidden>Add to Google Calendar</a>
+    </div>
+    <div class="seg kind-seg" role="group" aria-label="Type">
+      <button type="button" data-kind="task" aria-pressed="true">Task (with deadline)</button>
+      <button type="button" data-kind="activity" aria-pressed="false">Activity / schedule</button>
+    </div>
+    <label class="f"><span id="lTitle">Task</span>
+      <input class="field" id="fTitle" required maxlength="160" placeholder="e.g. Calibrate Koh Young SPI at customer line 3">
+    </label>
+    <label class="f">Details
+      <textarea class="field" id="fDesc" maxlength="4000" placeholder="What needs to be done, machine, serial number, contact person…"></textarea>
+    </label>
+    <div class="grid2">
+      <label class="f" id="lStatus">Status
+        <select class="field" id="fStatus"></select>
+      </label>
+      <label class="f" id="lPriority">Priority
+        <select class="field" id="fPriority">
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </label>
+      <label class="f"><span id="lDue">Due date</span>
+        <input class="field" type="date" id="fDue">
+      </label>
+      <label class="f" id="lStart" hidden>Start time
+        <input class="field" type="time" id="fStart">
+      </label>
+      <label class="f" id="lEnd" hidden>End time
+        <input class="field" type="time" id="fEnd">
+      </label>
+      <label class="f">Category
+        <select class="field" id="fCategory"></select>
+      </label>
+      <label class="f">Assigned to
+        <select class="field" id="fAssignee"></select>
+      </label>
+      <label class="f" id="otherWrap" hidden>Name
+        <input class="field" id="fAssigneeLabel" maxlength="80" placeholder="Person without a login">
+      </label>
+    </div>
+    <label class="f">Customer / location
+      <input class="field" id="fCustomer" maxlength="120" list="customerList" placeholder="Optional">
+    </label>
+    <datalist id="customerList"></datalist>
+
+    <section class="follow" id="followSec">
+      <h3>Follow-up notes</h3>
+      <div class="add-note">
+        <textarea class="field" id="noteText" maxlength="2000" aria-label="Add an update" placeholder="e.g. Called customer, visit confirmed for Thursday 09:00"></textarea>
+        <div><button class="btn" type="button" id="noteBtn">Post update</button></div>
+      </div>
+      <div class="thread" id="thread"></div>
+    </section>
+    <div class="meta-line" id="metaLine"></div>
+    <div class="confirm" id="confirmDel" hidden>
+      <span>Delete this for everyone, including its notes?</span>
+      <button class="btn danger" type="button" id="delYes">Delete</button>
+      <button class="btn" type="button" id="delNo">Keep</button>
+    </div>
+  </form>
+  <div class="d-foot">
+    <button class="btn danger" type="button" id="delBtn">Delete</button>
+    <div class="right">
+      <button class="btn" type="button" id="cancelBtn">Cancel</button>
+      <button class="btn primary" type="submit" form="form" id="saveBtn">Save</button>
+    </div>
+  </div>
+</aside>
+<button class="fab" id="fab" type="button" aria-label="New task or activity">+ New</button>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="../tasks/board.js"></script>
+</body>
+</html>

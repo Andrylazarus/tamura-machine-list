@@ -127,7 +127,8 @@ Supabase's free tier keeps the data but does not give you point-in-time restore.
 - Tasks can be assigned to anyone with an approved account, or to a typed-in name for someone without a login.
 - Changes from teammates appear live.
 - **Activities** are scheduled items without a deadline, like a customer visit, training or meeting. They have a date and an optional start and end time. In the form, switch between **Task (with deadline)** and **Activity / schedule**.
-- The **Schedule** view lists activities and task deadlines day by day: today, tomorrow, and onward. The morning email starts with **Today's schedule**.
+- **Schedule page** (`schedule/index.html`, at `https://<your-username>.github.io/tamura-machine-list/schedule/`): activities and, optionally, task deadlines, listed day by day: today, tomorrow, and onward. The morning email starts with **Today's schedule**.
+- Both pages share `tasks/board.css` and `tasks/board.js`. The `data-page` attribute on `<body>` picks the page.
 - A task with a due date has an **Add to Google Calendar** link, so each person can put their own reminder in their calendar.
 - The tables are created by `supabase/tasks.sql`. Run it once in the SQL Editor.
 

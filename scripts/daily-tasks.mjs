@@ -11,6 +11,7 @@ const config = readFileSync(new URL("../js/config.js", import.meta.url), "utf8")
 const SUPABASE_URL = env.SUPABASE_URL || (config.match(/SUPABASE_URL:\s*"([^"]+)"/) || [])[1];
 const KEY = env.SUPABASE_SERVICE_ROLE_KEY;
 const BOARD_URL = env.BOARD_URL || "https://andrylazarus.github.io/tamura-machine-list/tasks/";
+const SCHEDULE_URL = BOARD_URL.replace(/tasks\/?$/, "schedule/");
 
 function need(name, value) { if (!value) { console.error(`Missing ${name}. Add it under Settings → Secrets and variables → Actions.`); process.exit(1); } }
 need("SUPABASE_SERVICE_ROLE_KEY", KEY);
@@ -110,7 +111,8 @@ function scheduleHtml(list, showWho) {
   }).join("");
   return `<tr><td style="padding:22px 28px 0">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
-  <tr><td style="${FONT}font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${C.accent};padding-bottom:8px">Today's schedule &nbsp;<span style="color:${C.muted};font-weight:500">${list.length}</span></td></tr>
+  <tr><td style="${FONT}font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${C.accent};padding-bottom:8px">Today's schedule &nbsp;<span style="color:${C.muted};font-weight:500">${list.length}</span></td>
+  <td align="right" style="${FONT}font-size:12px;padding-bottom:8px"><a href="${esc(SCHEDULE_URL)}" style="color:${C.accent};text-decoration:none">Full schedule →</a></td></tr>
 </table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid ${C.line};border-radius:6px;background:#f7f9ff">${rows}</table></td></tr>`;
 }
