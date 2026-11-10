@@ -171,7 +171,7 @@ textarea.field { resize: vertical; min-height: 80px; }
   .grid2 { grid-template-columns: 1fr; }
 }
 [hidden] { display: none !important; }
-a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; color: var(--ink); }
 .me { flex-wrap: wrap; }
 .cal-link { font-size: 12.5px; color: var(--accent); text-decoration: none; font-weight: 500; }
 .cal-link:hover { text-decoration: underline; }
@@ -186,6 +186,64 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .gate-hint a { color: var(--accent); }
 .note .del { border: 0; background: transparent; color: var(--muted); font-size: 12px; padding: 0; }
 .note .del:hover { color: var(--crit); }
+
+/* ---------- Mobile ---------- */
+.wrap > * { min-width: 0; }
+.lane-tabs { display: none; }
+.fab { display: none; }
+@media (max-width: 700px) {
+  .wrap { padding: 14px 14px 96px; gap: 14px; }
+  header.top { align-items: center; }
+  .brand h1 { font-size: 20px; }
+  .brand .org { font-size: 10px; letter-spacing: .08em; }
+  .me span:last-child { display: none; }
+  #newBtn { display: none; }
+  header.top .btn { padding: 7px 10px; font-size: 13px; }
+
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .stat { padding: 9px 6px; text-align: center; gap: 2px; border-radius: 8px; }
+  .stat .k { font-size: 10.5px; line-height: 1.2; order: 2; }
+  .stat .v { font-size: 20px; order: 1; }
+
+  .toolbar { flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbar input[type=search] { flex: 0 0 100%; order: -1; }
+  .toolbar { flex-wrap: wrap; overflow: visible; }
+  .toolbar select.field { flex: 1 1 0; min-width: 0; font-size: 13px; padding: 8px 6px; }
+  .toolbar .seg { display: none; }
+  .field, .gate-card input { font-size: 16px; }
+
+  .lane-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; }
+  .lane-tabs::-webkit-scrollbar { display: none; }
+  .lane-tabs button { flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 12px; font-size: 13px; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+  .lane-tabs button .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .lane-tabs button .n { font: 500 12px var(--font-mono); }
+  .lane-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .lane-tabs button[aria-selected="true"] .dot { background: #fff !important; }
+  .board { display: block; overflow: visible; }
+  .board .lane { display: none; min-height: 0; padding: 0; background: transparent; border: 0; }
+  .board .lane.active { display: grid; }
+  .board .lane-h { display: none; }
+  .card { padding: 12px; }
+
+  table.list th:nth-child(1), table.list td:nth-child(1),
+  table.list th:nth-child(6), table.list td:nth-child(6),
+  table.list th:nth-child(7), table.list td:nth-child(7) { display: none; }
+  table.list th, table.list td { padding: 10px 8px; font-size: 13px; }
+
+  .fab { display: inline-flex; position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 9; align-items: center; gap: 6px; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 14px 20px; font-weight: 600; font-size: 15px; box-shadow: 0 6px 18px rgba(31,86,201,.35); }
+
+  .drawer { width: 100%; border-left: 0; }
+  .d-head, .d-body, .d-foot { padding-left: 16px; padding-right: 16px; }
+  .d-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .d-foot .right { flex: 1; justify-content: flex-end; }
+  .grid2 { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .toast { bottom: 84px; }
+}
+@media (max-width: 360px) {
+  .stat .k { font-size: 9.5px; }
+  .grid2 { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -235,10 +293,10 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
       <option value="">Everyone</option>
     </select>
     <select class="field" id="fCat" aria-label="Category">
-      <option value="">All categories</option>
+      <option value="">Category: all</option>
     </select>
     <select class="field" id="fPri" aria-label="Priority">
-      <option value="">All priorities</option>
+      <option value="">Priority: all</option>
       <option value="high">High</option>
       <option value="medium">Medium</option>
       <option value="low">Low</option>
@@ -321,6 +379,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
     </div>
   </div>
 </aside>
+<button class="fab" id="fab" type="button" aria-label="New task">+ New task</button>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -350,7 +409,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
     return el;
   }
 
-  const state = { tasks: [], notes: {}, members: [], view: "board", quick: "", q: "", who: "", cat: "", pri: "", me: null, role: null, editing: null };
+  const state = { lane: "todo", tasks: [], notes: {}, members: [], view: "board", quick: "", q: "", who: "", cat: "", pri: "", me: null, role: null, editing: null };
   let sb = null, channel = null;
 
   for (const s of STATUSES) $("fStatus").append(h("option", { value: s.id, text: s.label }));
@@ -448,10 +507,13 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
     return el;
   }
   function renderBoard(list) {
+    const tabs = h("div", { class: "lane-tabs", role: "tablist", "aria-label": "Status" },
+      STATUSES.map(s => h("button", { type: "button", role: "tab", "aria-selected": String(state.lane === s.id), onclick: () => { state.lane = s.id; render(); } },
+        h("span", { class: "dot", style: "background:" + s.color }), s.label, h("span", { class: "n", text: String(list.filter(t => t.status === s.id).length) }))));
     const board = h("div", { class: "board" });
     for (const s of STATUSES) {
       const items = list.filter(t => t.status === s.id);
-      const lane = h("section", { class: "lane", "aria-label": s.label },
+      const lane = h("section", { class: "lane" + (state.lane === s.id ? " active" : ""), "aria-label": s.label },
         h("div", { class: "lane-h" }, h("h2", null, h("span", { class: "dot", style: "background:" + s.color }), s.label), h("span", { class: "n", text: String(items.length) })),
         items.length ? items.map(card) : h("div", { class: "lane-empty", text: s.id === "done" ? "Finished tasks land here" : "No tasks" }));
       lane.addEventListener("dragover", (e) => { e.preventDefault(); lane.classList.add("drop"); });
@@ -459,7 +521,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
       lane.addEventListener("drop", (e) => { e.preventDefault(); lane.classList.remove("drop"); moveTask(e.dataTransfer.getData("text/plain"), s.id); });
       board.append(lane);
     }
-    return board;
+    return h("div", null, tabs, board);
   }
   function renderList(list) {
     const st = Object.fromEntries(STATUSES.map(s => [s.id, s]));
@@ -479,10 +541,12 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
     return h("div", { class: "list-wrap" }, h("table", { class: "list" },
       h("thead", null, h("tr", null, ["ID", "Task", "Status", "Assigned to", "Due", "Priority", "Customer"].map(x => h("th", { text: x })))), body));
   }
+  const mobile = window.matchMedia("(max-width: 700px)");
+  mobile.addEventListener("change", () => render());
   function render() {
     renderStats();
     const list = visible();
-    $("main").replaceChildren(state.view === "board" ? renderBoard(list) : renderList(list));
+    $("main").replaceChildren(state.view === "board" || mobile.matches ? renderBoard(list) : renderList(list));
     const customers = [...new Set(state.tasks.map(t => t.customer).filter(Boolean))].sort();
     $("customerList").replaceChildren(...customers.map(c => h("option", { value: c })));
     if (state.editing) { const t = current(); if (t) { renderThread(); renderMeta(t); } }
@@ -525,7 +589,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
     $("metaLine").textContent = "";
     if (t) { renderMeta(t); renderThread(); }
     $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false"); $("scrim").classList.add("open");
-    setTimeout(() => $("fTitle").focus(), 50);
+    if (!t || !window.matchMedia("(max-width: 700px)").matches) setTimeout(() => $("fTitle").focus(), 50);
   }
   function closeDrawer() { state.editing = null; $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); $("scrim").classList.remove("open"); }
   function renderThread() {
@@ -591,6 +655,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
   // ---------- UI events ----------
   $("newBtn").addEventListener("click", () => openDrawer(null));
+  $("fab").addEventListener("click", () => openDrawer(null));
   $("dClose").addEventListener("click", closeDrawer);
   $("cancelBtn").addEventListener("click", closeDrawer);
   $("scrim").addEventListener("click", closeDrawer);
