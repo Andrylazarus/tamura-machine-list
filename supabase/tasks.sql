@@ -125,3 +125,16 @@ begin
 end;
 $$;
 
+
+-- ---------- Activities (scheduled items without a deadline) ----------
+-- kind = 'activity': a visit, training or meeting on a date (stored in "due"), with an optional time.
+alter table public.tasks add column if not exists kind text not null default 'task';
+alter table public.tasks add column if not exists start_time time;
+alter table public.tasks add column if not exists end_time time;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tasks_kind_check') then
+    alter table public.tasks add constraint tasks_kind_check check (kind in ('task', 'activity'));
+  end if;
+end;
+$$;

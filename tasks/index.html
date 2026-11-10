@@ -187,6 +187,31 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
 .note .del { border: 0; background: transparent; color: var(--muted); font-size: 12px; padding: 0; }
 .note .del:hover { color: var(--crit); }
 
+/* ---------- Activities & schedule ---------- */
+.d-body { grid-auto-rows: max-content; }
+.kind-seg { display: flex; flex-shrink: 0; }
+.kind-seg button { flex: 1; }
+.sched { display: grid; gap: 18px; }
+.sched-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sched-bar .hint { margin: 0; }
+.day h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); display: flex; gap: 8px; align-items: baseline; }
+.day h3 b { color: var(--ink); font-size: 14px; }
+.day.today h3 b { color: var(--accent); }
+.day.past { opacity: .7; }
+.day-items { display: grid; gap: 8px; }
+.ev { display: grid; grid-template-columns: 96px 1fr auto; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px 12px; text-align: left; width: 100%; box-shadow: var(--shadow); }
+.ev:hover { border-color: var(--accent); }
+.ev.deadline { border-left-color: var(--warn); background: var(--lane); box-shadow: none; }
+.ev.deadline.p-high { border-left-color: var(--crit); }
+.ev .time { font: 600 13px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.ev.deadline .time { color: var(--warn); font-family: var(--font-body); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.ev .t { font-weight: 600; overflow-wrap: anywhere; }
+.ev .m { font-size: 12.5px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.ev .tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.ev.deadline .tag { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.sched-empty { text-align: center; color: var(--muted); padding: 40px 16px; border: 1px dashed var(--line); border-radius: 12px; background: var(--surface); }
+.stat-today .v { color: var(--accent); }
+
 /* ---------- Mobile ---------- */
 .wrap > * { min-width: 0; }
 .lane-tabs { display: none; }
@@ -210,7 +235,11 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
   .toolbar input[type=search] { flex: 0 0 100%; order: -1; }
   .toolbar { flex-wrap: wrap; overflow: visible; }
   .toolbar select.field { flex: 1 1 0; min-width: 0; font-size: 13px; padding: 8px 6px; }
-  .toolbar .seg { display: none; }
+  .toolbar .seg { flex: 0 0 100%; order: -2; display: flex; }
+  .toolbar .seg button { flex: 1; padding: 9px 8px; }
+  .toolbar .seg [data-view="list"] { display: none; }
+  .ev { grid-template-columns: 64px 1fr; gap: 10px; }
+  .ev .tag { display: none; }
   .field, .gate-card input { font-size: 16px; }
 
   .lane-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; }
@@ -274,7 +303,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
       <div class="me" id="me"></div>
       <a class="btn" href="../">Machine List</a>
       <button class="btn" type="button" id="logoutBtn">Log out</button>
-      <button class="btn primary" id="newBtn" type="button">+ New task</button>
+      <button class="btn primary" id="newBtn" type="button">+ New</button>
     </div>
   </header>
 
@@ -304,6 +333,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
     <div class="seg" role="group" aria-label="View">
       <button type="button" data-view="board" aria-pressed="true">Board</button>
       <button type="button" data-view="list" aria-pressed="false">List</button>
+      <button type="button" data-view="schedule" aria-pressed="false">Schedule</button>
     </div>
   </div>
 
@@ -321,25 +351,35 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
       <span class="code" id="dCode"></span>
       <a class="cal-link" id="calLink" href="#" target="_blank" rel="noopener" hidden>Add to Google Calendar</a>
     </div>
-    <label class="f">Task
+    <div class="seg kind-seg" role="group" aria-label="Type">
+      <button type="button" data-kind="task" aria-pressed="true">Task (with deadline)</button>
+      <button type="button" data-kind="activity" aria-pressed="false">Activity / schedule</button>
+    </div>
+    <label class="f"><span id="lTitle">Task</span>
       <input class="field" id="fTitle" required maxlength="160" placeholder="e.g. Calibrate Koh Young SPI at customer line 3">
     </label>
     <label class="f">Details
       <textarea class="field" id="fDesc" maxlength="4000" placeholder="What needs to be done, machine, serial number, contact person…"></textarea>
     </label>
     <div class="grid2">
-      <label class="f">Status
+      <label class="f" id="lStatus">Status
         <select class="field" id="fStatus"></select>
       </label>
-      <label class="f">Priority
+      <label class="f" id="lPriority">Priority
         <select class="field" id="fPriority">
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
       </label>
-      <label class="f">Due date
+      <label class="f"><span id="lDue">Due date</span>
         <input class="field" type="date" id="fDue">
+      </label>
+      <label class="f" id="lStart" hidden>Start time
+        <input class="field" type="time" id="fStart">
+      </label>
+      <label class="f" id="lEnd" hidden>End time
+        <input class="field" type="time" id="fEnd">
       </label>
       <label class="f">Category
         <select class="field" id="fCategory"></select>
@@ -366,7 +406,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
     </section>
     <div class="meta-line" id="metaLine"></div>
     <div class="confirm" id="confirmDel" hidden>
-      <span>Delete this task and its notes for everyone?</span>
+      <span>Delete this for everyone, including its notes?</span>
       <button class="btn danger" type="button" id="delYes">Delete</button>
       <button class="btn" type="button" id="delNo">Keep</button>
     </div>
@@ -375,11 +415,11 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
     <button class="btn danger" type="button" id="delBtn">Delete</button>
     <div class="right">
       <button class="btn" type="button" id="cancelBtn">Cancel</button>
-      <button class="btn primary" type="submit" form="form" id="saveBtn">Save task</button>
+      <button class="btn primary" type="submit" form="form" id="saveBtn">Save</button>
     </div>
   </div>
 </aside>
-<button class="fab" id="fab" type="button" aria-label="New task">+ New task</button>
+<button class="fab" id="fab" type="button" aria-label="New task or activity">+ New</button>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -428,9 +468,18 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
     if (n <= 2) return h("span", { class: "chip soon", text: "Due " + fmtDue(t.due) });
     return h("span", { class: "chip", text: "Due " + fmtDue(t.due) });
   }
-  const codeOf = (t) => "TSK-" + String(t.num || 0).padStart(3, "0");
+  const codeOf = (t) => (isAct(t) ? "ACT-" : "TSK-") + String(t.num || 0).padStart(3, "0");
+  const isAct = (t) => t.kind === "activity";
+  const hm = (v) => (v || "").slice(0, 5);
+  function timeRange(t) { return t.start_time ? hm(t.start_time) + (t.end_time ? "–" + hm(t.end_time) : "") : "All day"; }
   function calUrl(t) {
     if (!t.due) return null;
+    if (isAct(t) && t.start_time) {
+      const d = t.due.replace(/-/g, ""), st = hm(t.start_time).replace(":", "");
+      let en = t.end_time ? hm(t.end_time).replace(":", "") : String((Number(st.slice(0, 2)) + 1) % 24).padStart(2, "0") + st.slice(2);
+      const det = [t.details, "Activity " + codeOf(t) + " on the Team Task Board: " + location.href.split("#")[0]].filter(Boolean).join("\n\n");
+      return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(t.title) + "&dates=" + d + "T" + st + "00/" + d + "T" + en + "00&ctz=Asia/Jakarta&details=" + encodeURIComponent(det) + (t.customer ? "&location=" + encodeURIComponent(t.customer) : "");
+    }
     const a = t.due.replace(/-/g, "");
     const [y, m, d] = t.due.split("-").map(Number);
     const n = new Date(y, m - 1, d + 1);
@@ -468,6 +517,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
   function visible() {
     const q = state.q.trim().toLowerCase();
     return state.tasks.filter(t => {
+      if (isAct(t)) return false;
       if (state.cat && t.category !== state.cat) return false;
       if (state.pri && t.priority !== state.pri) return false;
       if (state.who === "none" && (t.assignee || t.assignee_label)) return false;
@@ -488,7 +538,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
     });
   }
   function renderStats() {
-    const open = state.tasks.filter(t => t.status !== "done");
+    const open = state.tasks.filter(t => !isAct(t) && t.status !== "done");
     $("sOpen").textContent = open.length;
     $("sOver").textContent = open.filter(t => t.due && dayDiff(t.due) < 0).length;
     $("sWeek").textContent = open.filter(t => { const n = dayDiff(t.due); return n != null && n >= 0 && n <= 7; }).length;
@@ -541,12 +591,54 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
     return h("div", { class: "list-wrap" }, h("table", { class: "list" },
       h("thead", null, h("tr", null, ["ID", "Task", "Status", "Assigned to", "Due", "Priority", "Customer"].map(x => h("th", { text: x })))), body));
   }
+  function dayLabel(d) {
+    const n = dayDiff(d);
+    const nice = new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+    return { main: n === 0 ? "Today" : n === 1 ? "Tomorrow" : n === -1 ? "Yesterday" : nice, sub: (n >= -1 && n <= 1) ? nice : "" };
+  }
+  function renderSchedule() {
+    const q = state.q.trim().toLowerCase();
+    const match = (t) => {
+      if (state.cat && t.category !== state.cat) return false;
+      if (state.who === "none" && (t.assignee || t.assignee_label)) return false;
+      if (state.who && state.who !== "none" && t.assignee !== state.who) return false;
+      if (q && ![t.title, t.details, t.customer, t.category, assigneeName(t), codeOf(t)].join(" ").toLowerCase().includes(q)) return false;
+      return true;
+    };
+    const from = state.showPast ? -14 : 0;
+    const items = state.tasks.filter(t => t.due && match(t) && dayDiff(t.due) >= from &&
+      (isAct(t) || (t.status !== "done" && (!state.pri || t.priority === state.pri))));
+    const days = {};
+    for (const t of items) (days[t.due] = days[t.due] || []).push(t);
+    const order = (t) => isAct(t) ? (t.start_time ? "0" + t.start_time : "00") : "2";
+    const bar = h("div", { class: "sched-bar" },
+      h("p", { class: "hint", text: "Activities and task deadlines by day." }),
+      h("button", { class: "btn", type: "button", text: state.showPast ? "Hide past days" : "Show past 14 days", onclick: () => { state.showPast = !state.showPast; render(); } }));
+    const keys = Object.keys(days).sort();
+    if (!keys.length) return h("div", { class: "sched" }, bar, h("div", { class: "sched-empty" },
+      h("p", { style: "margin:0 0 12px", text: "Nothing scheduled yet." }),
+      h("button", { class: "btn primary", type: "button", text: "+ Add an activity", onclick: () => openDrawer(null, "activity") })));
+    return h("div", { class: "sched" }, bar, keys.map(d => {
+      const n = dayDiff(d), lab = dayLabel(d);
+      return h("section", { class: "day" + (n === 0 ? " today" : "") + (n < 0 ? " past" : "") },
+        h("h3", null, h("b", { text: lab.main }), lab.sub ? h("span", { text: lab.sub }) : null),
+        h("div", { class: "day-items" }, days[d].sort((a, b) => order(a).localeCompare(order(b))).map(t => {
+          const who = assigneeName(t);
+          const meta = [t.customer, who + (t.assignee === state.me ? " (you)" : "")].filter(Boolean).join(" · ");
+          return h("button", { class: "ev" + (isAct(t) ? "" : " deadline p-" + t.priority), type: "button", onclick: () => openDrawer(t) },
+            h("span", { class: "time", text: isAct(t) ? timeRange(t) : "Deadline" }),
+            h("span", null, h("div", { class: "t", text: t.title }), meta ? h("div", { class: "m", text: meta }) : null),
+            h("span", { class: "tag", text: isAct(t) ? (t.category || "Activity") : (PRI_LABEL[t.priority] || "Medium") + " · " + (STATUSES.find(s => s.id === t.status) || {}).label }));
+        })));
+    }));
+  }
   const mobile = window.matchMedia("(max-width: 700px)");
   mobile.addEventListener("change", () => render());
   function render() {
     renderStats();
     const list = visible();
-    $("main").replaceChildren(state.view === "board" || mobile.matches ? renderBoard(list) : renderList(list));
+    const v = state.view === "list" && mobile.matches ? "board" : state.view;
+    $("main").replaceChildren(v === "schedule" ? renderSchedule() : v === "list" ? renderList(list) : renderBoard(list));
     const customers = [...new Set(state.tasks.map(t => t.customer).filter(Boolean))].sort();
     $("customerList").replaceChildren(...customers.map(c => h("option", { value: c })));
     if (state.editing) { const t = current(); if (t) { renderThread(); renderMeta(t); } }
@@ -565,7 +657,22 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
       (t.updated_at && t.updated_at !== t.created_at ? " · Last updated " + fmtTime(t.updated_at) + " by " + (personName(t.updated_by) || "someone") : "");
     const url = calUrl(t); $("calLink").hidden = !url; if (url) $("calLink").href = url;
   }
-  function openDrawer(t) {
+  let drawerKind = "task";
+  function setKind(k) {
+    drawerKind = k;
+    const act = k === "activity";
+    document.querySelectorAll("[data-kind]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === k)));
+    $("lStatus").hidden = act; $("lPriority").hidden = act;
+    $("lStart").hidden = !act; $("lEnd").hidden = !act;
+    $("lDue").textContent = act ? "Date" : "Due date";
+    $("lTitle").textContent = act ? "Activity" : "Task";
+    $("fDue").required = act;
+    $("fTitle").placeholder = act ? "e.g. Customer visit at PT ABC, SPI training for new trainees" : "e.g. Calibrate Koh Young SPI at customer line 3";
+    const t = current();
+    $("dTitle").textContent = act ? (t ? "Activity details" : "New activity") : (t ? "Task details" : "New task");
+  }
+  document.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => setKind(b.dataset.kind)));
+  function openDrawer(t, kind) {
     state.editing = t ? t.id : null;
     $("dTitle").textContent = t ? "Task details" : "New task";
     $("dCode").textContent = t ? codeOf(t) : "";
@@ -574,6 +681,9 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
     $("fStatus").value = t ? t.status : "todo";
     $("fPriority").value = t ? t.priority : "medium";
     $("fDue").value = t && t.due ? t.due : "";
+    $("fStart").value = t ? hm(t.start_time) : "";
+    $("fEnd").value = t ? hm(t.end_time) : "";
+    setKind(t ? (isAct(t) ? "activity" : "task") : (kind || "task"));
     $("fCategory").value = t ? (CATEGORIES.includes(t.category) ? t.category : "Other") : "Customer visit";
     $("fCustomer").value = t ? t.customer : "";
     if (t && t.assignee && state.members.some(m => m.id === t.assignee)) $("fAssignee").value = t.assignee;
@@ -607,16 +717,23 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
     const title = $("fTitle").value.trim();
     if (!title) { $("fTitle").focus(); return; }
     const a = $("fAssignee").value;
+    const act = drawerKind === "activity";
+    if (act && !$("fDue").value) { $("fDue").focus(); return toast("Pick a date for the activity."); }
+    if (act && $("fStart").value && $("fEnd").value && $("fEnd").value <= $("fStart").value) { $("fEnd").focus(); return toast("End time must be after the start time."); }
     const row = {
-      title, details: $("fDesc").value.trim(), status: $("fStatus").value, priority: $("fPriority").value,
+      kind: drawerKind, start_time: act ? ($("fStart").value || null) : null, end_time: act ? ($("fEnd").value || null) : null,
+      title, details: $("fDesc").value.trim(), status: act ? (current() ? current().status : "todo") : $("fStatus").value, priority: act ? "medium" : $("fPriority").value,
       due: $("fDue").value || null, category: $("fCategory").value, customer: $("fCustomer").value.trim(),
       assignee: a && a !== OTHER ? a : null, assignee_label: a === OTHER ? $("fAssigneeLabel").value.trim() : ""
     };
     $("saveBtn").disabled = true;
     const r = state.editing ? await sb.from("tasks").update(row).eq("id", state.editing) : await sb.from("tasks").insert(row);
     $("saveBtn").disabled = false;
-    if (r.error) return fail("Couldn't save the task", r.error);
-    toast(state.editing ? "Task updated" : "Task added");
+    if (r.error) {
+      if (/kind|start_time|end_time/.test(r.error.message || "")) return toast("Activities need a database update. Run the latest supabase/tasks.sql in the Supabase SQL Editor.");
+      return fail("Couldn't save", r.error);
+    }
+    toast((act ? "Activity" : "Task") + (state.editing ? " updated" : " added"));
     closeDrawer();
     reload();
   });
@@ -654,8 +771,8 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
   });
 
   // ---------- UI events ----------
-  $("newBtn").addEventListener("click", () => openDrawer(null));
-  $("fab").addEventListener("click", () => openDrawer(null));
+  $("newBtn").addEventListener("click", () => openDrawer(null, state.view === "schedule" ? "activity" : "task"));
+  $("fab").addEventListener("click", () => openDrawer(null, state.view === "schedule" ? "activity" : "task"));
   $("dClose").addEventListener("click", closeDrawer);
   $("cancelBtn").addEventListener("click", closeDrawer);
   $("scrim").addEventListener("click", closeDrawer);
@@ -667,7 +784,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
   document.querySelectorAll("[data-quick]").forEach(b => b.addEventListener("click", () => { state.quick = state.quick === b.dataset.quick ? "" : b.dataset.quick; render(); }));
   function setView(v) { state.view = v; document.querySelectorAll("[data-view]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.view === v))); }
   document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => { setView(b.dataset.view); try { localStorage.setItem("ttb-view", state.view); } catch (_) {} render(); }));
-  try { const v = localStorage.getItem("ttb-view"); if (v === "list" || v === "board") setView(v); } catch (_) {}
+  try { const v = localStorage.getItem("ttb-view"); if (v === "list" || v === "board" || v === "schedule") setView(v); } catch (_) {}
 
   // ---------- Data ----------
   async function reload() {

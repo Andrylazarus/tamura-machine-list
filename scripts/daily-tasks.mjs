@@ -49,10 +49,13 @@ const PRI_COLOR = { high: "#c2412d", medium: "#b7791f", low: "#1d8a5b" };
 // High priority first, then the nearest due date
 const sortTasks = (a, b) => (RANK[a.priority] ?? 1) - (RANK[b.priority] ?? 1) || (a.due || "9999").localeCompare(b.due || "9999");
 
-const [tasks, profiles] = await Promise.all([
+const [openRows, profiles, todayRows] = await Promise.all([
   api("tasks?select=*&status=in.(todo,progress)"),
-  api("profiles?select=id,email,role")
+  api("profiles?select=id,email,role"),
+  api(`tasks?select=*&kind=eq.activity&due=eq.${today}&order=start_time.asc.nullsfirst`).catch(() => [])
 ]);
+const tasks = openRows.filter((t) => t.kind !== "activity");
+const activities = todayRows;
 const people = profiles.filter((p) => p.email && (p.role === "admin" || p.role === "viewer"));
 const emailOf = Object.fromEntries(people.map((p) => [p.id, p.email]));
 const ownerOf = (t) => (emailOf[t.assignee] ? t.assignee : emailOf[t.created_by] ? t.created_by : null);
@@ -89,6 +92,28 @@ function section(title, list, showWho, accent) {
 ${list.map((t) => rowHtml(t, showWho)).join("")}
 </table></td></tr>`;
 }
+const hm = (v) => (v || "").slice(0, 5);
+const timeRange = (a) => (a.start_time ? hm(a.start_time) + (a.end_time ? " – " + hm(a.end_time) : "") : "All day");
+function scheduleHtml(list, showWho) {
+  if (!list.length) return "";
+  const rows = list.map((a) => {
+    const who = emailOf[a.assignee] ? name(emailOf[a.assignee]) : a.assignee_label || "";
+    const meta = [a.customer, showWho ? who : "", a.category].filter(Boolean).map(esc).join(" &nbsp;·&nbsp; ");
+    return `<tr>
+<td width="4" bgcolor="${C.accent}" style="background:${C.accent};width:4px;font-size:0;line-height:0">&nbsp;</td>
+<td width="110" valign="top" style="padding:12px 6px 12px 14px;border-bottom:1px solid ${C.line};${FONT}font-size:13px;font-weight:700;color:${C.accent};white-space:nowrap">${esc(timeRange(a))}</td>
+<td style="padding:12px 14px 12px 6px;border-bottom:1px solid ${C.line};${FONT}">
+  <div style="font-size:14px;font-weight:600;color:${C.ink};line-height:1.35">${esc(a.title)}</div>
+  ${meta ? `<div style="font-size:12px;color:${C.muted};padding-top:3px">${meta}</div>` : ""}
+  ${a.details ? `<div style="font-size:12px;color:${C.muted};padding-top:4px;white-space:pre-wrap">${esc(a.details.slice(0, 240))}</div>` : ""}
+</td></tr>`;
+  }).join("");
+  return `<tr><td style="padding:22px 28px 0">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
+  <tr><td style="${FONT}font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${C.accent};padding-bottom:8px">Today's schedule &nbsp;<span style="color:${C.muted};font-weight:500">${list.length}</span></td></tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid ${C.line};border-radius:6px;background:#f7f9ff">${rows}</table></td></tr>`;
+}
 function stat(label, value, color) {
   return `<td width="25%" align="center" style="padding:14px 4px;${FONT}">
   <div style="font-size:24px;font-weight:700;color:${color};line-height:1">${value}</div>
@@ -98,13 +123,13 @@ function textList(title, list, showWho) {
   if (!list.length) return "";
   return `\n${title} (${list.length})\n` + list.map((t) => `- [${(PRI[t.priority] || "Medium").toUpperCase()}] ${code(t)} ${t.title} | ${dueText(t)}${showWho ? " | " + (emailOf[t.assignee] ? name(emailOf[t.assignee]) : t.assignee_label || "Unassigned") : ""}${t.customer ? " | " + t.customer : ""}`).join("\n") + "\n";
 }
-function buildEmail(greetName, list, showWho) {
+function buildEmail(greetName, list, showWho, acts = []) {
   list = list.slice().sort(sortTasks);
   const soon = list.filter(urgent);
   const progress = list.filter((t) => t.status === "progress" && !urgent(t));
   const todo = list.filter((t) => t.status === "todo" && !urgent(t));
   const high = list.filter((t) => t.priority === "high").length;
-  const subject = `Tasks for ${short(today)}: ${list.length} open${high ? `, ${high} high priority` : ""}${soon.length ? `, ${soon.length} due soon` : ""}`;
+  const subject = `Tasks for ${short(today)}: ${acts.length ? `${acts.length} on today's schedule, ` : ""}${list.length} open${high ? `, ${high} high priority` : ""}${soon.length ? `, ${soon.length} due soon` : ""}`;
   const overdue = list.filter((t) => left(t) != null && left(t) < 0).length;
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.bg}">
@@ -117,12 +142,13 @@ function buildEmail(greetName, list, showWho) {
     <div style="font-size:20px;font-weight:700;color:#ffffff;padding-top:6px">Daily Task Summary</div>
     <div style="font-size:13px;color:#c9d5e8;padding-top:4px">${esc(longDate)}</div>
   </td></tr>
-  <tr><td style="padding:22px 28px 0;${FONT}font-size:14px;color:${C.ink}">Good morning${greetName ? ", " + esc(greetName) : ""}. Here ${list.length === 1 ? "is the open task" : "are the open tasks"} for today.</td></tr>
+  <tr><td style="padding:22px 28px 0;${FONT}font-size:14px;color:${C.ink}">Good morning${greetName ? ", " + esc(greetName) : ""}. Here is ${acts.length ? "today's schedule and " : ""}the open task list.</td></tr>
   <tr><td style="padding:16px 28px 0">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f7f9fc" style="background:#f7f9fc;border:1px solid ${C.line};border-radius:6px">
       <tr>${stat("OPEN", list.length, C.ink)}${stat("HIGH PRIORITY", high, high ? C.red : C.muted)}${stat("DUE SOON", soon.length - overdue, soon.length - overdue ? C.amber : C.muted)}${stat("OVERDUE", overdue, overdue ? C.red : C.muted)}</tr>
     </table>
   </td></tr>
+  ${scheduleHtml(acts, showWho)}
   ${section(`Needs attention · due within ${SOON} days or overdue`, soon, showWho, C.red)}
   ${section("In progress", progress, showWho, C.accent)}
   ${section("To do", todo, showWho)}
@@ -140,6 +166,7 @@ function buildEmail(greetName, list, showWho) {
 </td></tr></table>
 </body></html>`;
   const text = `Good morning${greetName ? ", " + greetName : ""}. ${longDate}\n` +
+    (acts.length ? `\nTODAY'S SCHEDULE (${acts.length})\n` + acts.map((a) => `- ${timeRange(a)}  ${a.title}${a.customer ? " | " + a.customer : ""}`).join("\n") + "\n" : "") +
     textList(`DUE WITHIN ${SOON} DAYS OR OVERDUE`, soon, showWho) + textList("IN PROGRESS", progress, showWho) + textList("TO DO", todo, showWho) +
     `\nOpen the task board: ${BOARD_URL}\n`;
   return { subject, html, text };
@@ -155,15 +182,16 @@ async function send(to, mail) {
   console.log(`- emailed ${to}: ${mail.subject}`);
 }
 
-console.log(`${today}: ${tasks.length} open task(s)${DRY ? " (dry run, nothing is sent)" : ""}.`);
+console.log(`${today}: ${activities.length} activity(ies) today, ${tasks.length} open task(s)${DRY ? " (dry run, nothing is sent)" : ""}.`);
 let failed = 0;
 for (const p of people) {
   const mine = tasks.filter((t) => ownerOf(t) === p.id);
-  if (!mine.length) continue;
-  try { await send(p.email, buildEmail(name(p.email), mine, false)); } catch (e) { failed++; console.error(`- ${p.email} FAILED: ${e.message}`); }
+  const myActs = activities.filter((a) => ownerOf(a) === p.id);
+  if (!mine.length && !myActs.length) continue;
+  try { await send(p.email, buildEmail(name(p.email), mine, false, myActs)); } catch (e) { failed++; console.error(`- ${p.email} FAILED: ${e.message}`); }
 }
 const cc = (env.REMINDER_CC || "").split(",").map((s) => s.trim()).filter(Boolean);
-if (cc.length && tasks.length) {
-  try { await send(cc.join(", "), buildEmail("", tasks, true)); } catch (e) { failed++; console.error(`- team summary FAILED: ${e.message}`); }
+if (cc.length && (tasks.length || activities.length)) {
+  try { await send(cc.join(", "), buildEmail("", tasks, true, activities)); } catch (e) { failed++; console.error(`- team summary FAILED: ${e.message}`); }
 }
 if (failed) process.exit(1);
