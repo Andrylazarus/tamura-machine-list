@@ -1,18 +1,19 @@
-name: Task reminders
+name: Daily task email
 
-# Every day at 07:00 WIB (00:00 UTC), email the assignee of every open task due within 2 days.
+# Every day at 08:00 WIB (01:00 UTC): email each person their To do and In progress tasks.
+# GitHub can start scheduled jobs a few minutes late.
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Only list who would be emailed, send nothing"
+        description: "Only show who would get an email, send nothing"
         type: boolean
         default: true
 
 jobs:
-  remind:
+  send:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -21,11 +22,11 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-save --no-audit --no-fund nodemailer@6.9.16
-      - run: node scripts/send-reminders.mjs
+      - run: node scripts/daily-tasks.mjs
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           REMINDER_CC: ${{ secrets.REMINDER_CC }}
-          DAYS_BEFORE: "2"
+          DUE_SOON_DAYS: "2"
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}

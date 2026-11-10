@@ -129,18 +129,17 @@ Supabase's free tier keeps the data but does not give you point-in-time restore.
 - A task with a due date has an **Add to Google Calendar** link, so each person can put their own reminder in their calendar.
 - The tables are created by `supabase/tasks.sql`. Run it once in the SQL Editor.
 
-### Email reminders (H-2)
+### Daily task email (08:00)
 
-Every day at 07:00 WIB, GitHub runs `scripts/send-reminders.mjs` (`.github/workflows/task-reminders.yml`). For every open task due within 2 days, it emails the assigned person, or the task's creator if nobody with a login is assigned. Each task gets one reminder per due date. If the due date changes, a new reminder is sent.
+Every morning at 08:00 WIB, GitHub runs `scripts/daily-tasks.mjs` (`.github/workflows/daily-tasks.yml`). Each person with an approved account gets one email listing their **To do** and **In progress** tasks. Tasks due within 2 days, or overdue, are flagged at the top. People with no open tasks get no email. A task assigned to someone without a login goes to the person who created it. GitHub sometimes starts scheduled jobs a few minutes late.
 
 Setup, once:
-1. Run the latest `supabase/tasks.sql` in the SQL Editor. It adds the `task_reminders` table.
-2. Create a Gmail **app password** for the sending account: Google Account → Security → 2-Step Verification → App passwords.
-3. In this repository, open **Settings → Secrets and variables → Actions → New repository secret** and add:
+1. Create a Gmail **app password** for the sending account: Google Account → Security → 2-Step Verification → App passwords.
+2. In this repository, open **Settings → Secrets and variables → Actions → New repository secret** and add:
    - `SUPABASE_SERVICE_ROLE_KEY`: from Supabase → Project Settings → API → `service_role`. It stays secret in GitHub and is never in the website code.
-   - `SMTP_USER`: the Gmail address that sends the reminders.
-   - `SMTP_PASS`: the app password from step 2.
-   - `REMINDER_CC` (optional): addresses to copy on every reminder, separated by commas, for example a team mailbox.
-4. Test it: **Actions → Task reminders → Run workflow**. With *dry run* ticked, it only lists who would be emailed. Untick it to really send.
+   - `SMTP_USER`: the Gmail address that sends the emails.
+   - `SMTP_PASS`: the app password from step 1.
+   - `REMINDER_CC` (optional): addresses that get the whole team's list every morning, separated by commas, for example a supervisor or team mailbox.
+3. Test it: **Actions → Daily task email → Run workflow**. With *dry run* ticked, it only lists who would get an email. Untick it to really send.
 
-To change how many days ahead it reminds, edit `DAYS_BEFORE` in the workflow file.
+To change the time, edit the `cron` line in the workflow file. It is in UTC, so 08:00 WIB is `0 1 * * *`. To change what counts as "due soon", edit `DUE_SOON_DAYS`.

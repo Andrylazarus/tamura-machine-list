@@ -125,14 +125,3 @@ begin
 end;
 $$;
 
--- ---------- Email reminders (H-2) ----------
--- Remembers which reminders were already emailed, so each task gets one reminder per due date.
--- Only the GitHub reminder job (service_role key) touches this table; the website never reads it.
-create table if not exists public.task_reminders (
-  task_id uuid not null references public.tasks (id) on delete cascade,
-  due     date not null,
-  sent_at timestamptz not null default now(),
-  primary key (task_id, due)
-);
-alter table public.task_reminders enable row level security;
-revoke all on public.task_reminders from anon, authenticated;
