@@ -114,3 +114,17 @@ Supabase's free tier keeps the data but does not give you point-in-time restore.
 - The file itself contains no personal data. The first time, tap **Restore** and choose a backup file to load your replacement day list and earlier weeks.
 - **Backup** downloads everything as a `.json` file.
 - The table is created by `supabase/transport.sql`. Run it once in the SQL Editor.
+
+---
+
+## Team task board
+
+`tasks/index.html` is a shared task board for the service team: customer visits, calibrations, training, reports and anything else that needs following up.
+
+- Open it at `https://<your-username>.github.io/tamura-machine-list/tasks/`, or with the **Team tasks** button in the app header.
+- It uses the same logins. Approved users (admin, viewer) can add tasks, assign them, move them between **To do**, **In progress**, **Waiting / follow-up** and **Done**, and post follow-up notes. `pending` accounts see nothing.
+- A task can be deleted only by the person who created it or by an admin. A note can be deleted by its author or an admin.
+- Tasks can be assigned to anyone with an approved account, or to a typed-in name for someone without a login.
+- Changes from teammates appear live.
+- A task with a due date has an **Add to Google Calendar** link, so each person can put their own reminder in their calendar.
+- The tables are created by `supabase/tasks.sql`. Run it once in the SQL Editor.

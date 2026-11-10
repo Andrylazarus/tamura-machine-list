@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Team Task Board</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
+<script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+<script src="../js/config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: control-room board. Summary strip on top, four status lanes, task detail slides in from the right. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --ink: #16202e;
+  --muted: #5d6b7e;
+  --line: #d7dde6;
+  --accent: #1f56c9;
+  --accent-soft: #e3ebfb;
+  --lane: #f6f8fb;
+  --ok: #1d8a5b;
+  --warn: #b7791f;
+  --crit: #c2412d;
+  --shadow: 0 1px 2px rgba(22,32,46,.06), 0 4px 14px rgba(22,32,46,.06);
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141c; --surface: #18202c; --ink: #e6ebf2; --muted: #93a1b5; --line: #2a3442;
+    --accent: #6f9bff; --accent-soft: #1d2b47; --lane: #131a24;
+    --ok: #4cc28d; --warn: #e0a84a; --crit: #f07a66;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --surface: #18202c; --ink: #e6ebf2; --muted: #93a1b5; --line: #2a3442;
+  --accent: #6f9bff; --accent-soft: #1d2b47; --lane: #131a24;
+  --ok: #4cc28d; --warn: #e0a84a; --crit: #f07a66;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font-body); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap { max-width: 1320px; margin: 0 auto; padding: 20px 20px 48px; display: grid; gap: 18px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.brand { display: grid; gap: 2px; }
+.brand .org { font: 500 11px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.brand h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+.me { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.me img { width: 26px; height: 26px; border-radius: 50%; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; font-weight: 500; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--crit); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.notice { border: 1px solid var(--line); border-left: 4px solid var(--warn); background: var(--surface); padding: 10px 14px; border-radius: 8px; }
+.notice[hidden] { display: none; }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; text-align: left; }
+.stat .k { font-size: 12px; color: var(--muted); font-weight: 500; }
+.stat .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat.crit .v { color: var(--crit); }
+.stat.warn .v { color: var(--warn); }
+.stat.ok .v { color: var(--ok); }
+button.stat:hover { border-color: var(--accent); }
+button.stat[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.toolbar input[type=search] { flex: 1 1 220px; min-width: 0; }
+.field { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: 8px 12px; color: var(--muted); font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+
+.board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 14px; overflow-x: auto; padding-bottom: 4px; }
+.lane { background: var(--lane); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; align-content: start; gap: 8px; min-height: 260px; }
+.lane.drop { border-color: var(--accent); background: var(--accent-soft); }
+.lane-h { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 6px; }
+.lane-h h2 { margin: 0; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.lane-h .dot { width: 8px; height: 8px; border-radius: 50%; }
+.lane-h .n { font: 500 12px var(--font-mono); color: var(--muted); }
+.lane-empty { color: var(--muted); font-size: 13px; padding: 14px 6px; text-align: center; border: 1px dashed var(--line); border-radius: 8px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; text-align: left; box-shadow: var(--shadow); width: 100%; }
+.card:hover { border-color: var(--accent); border-left-color: inherit; }
+.card.p-high { border-left-color: var(--crit); }
+.card.p-medium { border-left-color: var(--warn); }
+.card.p-low { border-left-color: var(--ok); }
+.card .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.code { font: 500 11px var(--font-mono); color: var(--muted); }
+.card .t { font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--lane); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.overdue { color: var(--crit); border-color: currentColor; font-weight: 600; }
+.chip.soon { color: var(--warn); border-color: currentColor; font-weight: 600; }
+.who { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); min-width: 0; }
+.who img, .who .ini { width: 20px; height: 20px; border-radius: 50%; flex: none; }
+.who .ini { display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 700; }
+.who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-n { font: 500 11.5px var(--font-mono); color: var(--muted); }
+
+table.list { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.list-wrap { overflow-x: auto; }
+table.list th, table.list td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.list th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--lane); }
+table.list tr.r { cursor: pointer; }
+table.list tr.r:hover td { background: var(--accent-soft); }
+table.list td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.status-pill { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+
+/* Drawer */
+.scrim { position: fixed; inset: 0; background: rgba(10,15,25,.35); display: none; z-index: 10; }
+.scrim.open { display: block; }
+.drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(520px, 100%); background: var(--surface); border-left: 1px solid var(--line); z-index: 11; transform: translateX(100%); transition: transform .2s ease; display: grid; grid-template-rows: auto 1fr auto; }
+.drawer.open { transform: none; }
+@media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+.d-head { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.d-head h2 { margin: 0; font-size: 16px; }
+.d-body { overflow-y: auto; padding: 16px 20px; display: grid; gap: 14px; align-content: start; }
+.d-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.d-foot .right { display: flex; gap: 8px; }
+label.f { display: grid; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+label.f .field { font-weight: 400; color: var(--ink); width: 100%; }
+textarea.field { resize: vertical; min-height: 80px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.picker { position: relative; }
+.suggest { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); margin-top: 4px; z-index: 2; display: none; max-height: 240px; overflow-y: auto; }
+.suggest.open { display: block; }
+.suggest button { display: flex; width: 100%; align-items: center; gap: 8px; border: 0; background: transparent; padding: 8px 10px; text-align: left; }
+.suggest button:hover, .suggest button:focus-visible { background: var(--accent-soft); }
+.suggest img { width: 22px; height: 22px; border-radius: 50%; }
+.hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+
+.follow h3 { margin: 6px 0 0; font-size: 13px; }
+.thread { display: grid; gap: 10px; }
+.note { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--lane); display: grid; gap: 4px; }
+.note .meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.note .meta b { color: var(--ink); font-weight: 600; }
+.note p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.add-note { display: grid; gap: 8px; }
+.add-note .field { min-height: 60px; }
+.meta-line { font-size: 12px; color: var(--muted); }
+.confirm { border: 1px solid var(--crit); border-radius: 8px; padding: 10px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.confirm[hidden] { display: none; }
+
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; z-index: 20; display: none; }
+.toast.show { display: block; }
+
+@media (max-width: 860px) {
+  .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .board { grid-template-columns: repeat(4, minmax(250px, 80%)); }
+}
+@media (max-width: 480px) {
+  .grid2 { grid-template-columns: 1fr; }
+}
+[hidden] { display: none !important; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.me { flex-wrap: wrap; }
+.cal-link { font-size: 12.5px; color: var(--accent); text-decoration: none; font-weight: 500; }
+.cal-link:hover { text-decoration: underline; }
+.gate { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; padding: 16px; z-index: 30; }
+.gate-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; width: min(380px, 100%); display: grid; gap: 14px; box-shadow: var(--shadow); }
+.gate-card h1 { margin: 0; font-size: 22px; }
+.gate-card form { display: grid; gap: 12px; }
+.gate-card label { display: grid; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.gate-card input { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 9px 10px; font-weight: 400; color: var(--ink); }
+.gate-msg { margin: 0; color: var(--crit); font-size: 13px; }
+.gate-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.gate-hint a { color: var(--accent); }
+.note .del { border: 0; background: transparent; color: var(--muted); font-size: 12px; padding: 0; }
+.note .del:hover { color: var(--crit); }
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <h1>Team Task Board</h1>
+    <form id="gate-login" hidden>
+      <label>Email<input id="g-email" type="email" autocomplete="username" required></label>
+      <label>Password<input id="g-pass" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary" id="g-btn" type="submit">Log in</button>
+    </form>
+    <div id="gate-pending" hidden>
+      <p style="margin:0 0 10px">Your account is waiting for approval. Ask an administrator to set your role to viewer or admin in Machine List → Users.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="g-again" type="button">Check again</button><button class="btn" id="g-out" type="button">Log out</button></div>
+    </div>
+    <p class="gate-msg" id="gate-msg" hidden></p>
+    <p class="gate-hint">Use the same account as Tamura Machine List. First time, or forgot your password? <a href="../">Set it on the Machine List page</a>.</p>
+  </div>
+</div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="org">PT. Tamura Trade Indonesia · Service Team</span>
+      <h1>Team Task Board</h1>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div class="me" id="me"></div>
+      <a class="btn" href="../">Machine List</a>
+      <button class="btn" type="button" id="logoutBtn">Log out</button>
+      <button class="btn primary" id="newBtn" type="button">+ New task</button>
+    </div>
+  </header>
+
+  <div class="notice" id="notice" hidden></div>
+
+  <section class="stats" aria-label="Summary">
+    <button class="stat" type="button" data-quick="open" aria-pressed="false"><span class="k">Open tasks</span><span class="v" id="sOpen">–</span></button>
+    <button class="stat crit" type="button" data-quick="overdue" aria-pressed="false"><span class="k">Overdue</span><span class="v" id="sOver">–</span></button>
+    <button class="stat warn" type="button" data-quick="week" aria-pressed="false"><span class="k">Due in 7 days</span><span class="v" id="sWeek">–</span></button>
+    <button class="stat ok" type="button" data-quick="mine" aria-pressed="false"><span class="k">Assigned to me</span><span class="v" id="sMine">–</span></button>
+  </section>
+
+  <div class="toolbar">
+    <input type="search" class="field" id="q" placeholder="Search tasks, customers, notes…" aria-label="Search tasks">
+    <select class="field" id="fWho" aria-label="Assigned to">
+      <option value="">Everyone</option>
+    </select>
+    <select class="field" id="fCat" aria-label="Category">
+      <option value="">All categories</option>
+    </select>
+    <select class="field" id="fPri" aria-label="Priority">
+      <option value="">All priorities</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" data-view="board" aria-pressed="true">Board</button>
+      <button type="button" data-view="list" aria-pressed="false">List</button>
+    </div>
+  </div>
+
+  <main id="main"></main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dTitle">
+  <div class="d-head">
+    <h2 id="dTitle">New task</h2>
+    <button class="btn" type="button" id="dClose">Close</button>
+  </div>
+  <form class="d-body" id="form" autocomplete="off">
+    <div class="row" style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+      <span class="code" id="dCode"></span>
+      <a class="cal-link" id="calLink" href="#" target="_blank" rel="noopener" hidden>Add to Google Calendar</a>
+    </div>
+    <label class="f">Task
+      <input class="field" id="fTitle" required maxlength="160" placeholder="e.g. Calibrate Koh Young SPI at customer line 3">
+    </label>
+    <label class="f">Details
+      <textarea class="field" id="fDesc" maxlength="4000" placeholder="What needs to be done, machine, serial number, contact person…"></textarea>
+    </label>
+    <div class="grid2">
+      <label class="f">Status
+        <select class="field" id="fStatus"></select>
+      </label>
+      <label class="f">Priority
+        <select class="field" id="fPriority">
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </label>
+      <label class="f">Due date
+        <input class="field" type="date" id="fDue">
+      </label>
+      <label class="f">Category
+        <select class="field" id="fCategory"></select>
+      </label>
+      <label class="f">Assigned to
+        <select class="field" id="fAssignee"></select>
+      </label>
+      <label class="f" id="otherWrap" hidden>Name
+        <input class="field" id="fAssigneeLabel" maxlength="80" placeholder="Person without a login">
+      </label>
+    </div>
+    <label class="f">Customer / location
+      <input class="field" id="fCustomer" maxlength="120" list="customerList" placeholder="Optional">
+    </label>
+    <datalist id="customerList"></datalist>
+
+    <section class="follow" id="followSec">
+      <h3>Follow-up notes</h3>
+      <div class="add-note">
+        <textarea class="field" id="noteText" maxlength="2000" aria-label="Add an update" placeholder="e.g. Called customer, visit confirmed for Thursday 09:00"></textarea>
+        <div><button class="btn" type="button" id="noteBtn">Post update</button></div>
+      </div>
+      <div class="thread" id="thread"></div>
+    </section>
+    <div class="meta-line" id="metaLine"></div>
+    <div class="confirm" id="confirmDel" hidden>
+      <span>Delete this task and its notes for everyone?</span>
+      <button class="btn danger" type="button" id="delYes">Delete</button>
+      <button class="btn" type="button" id="delNo">Keep</button>
+    </div>
+  </form>
+  <div class="d-foot">
+    <button class="btn danger" type="button" id="delBtn">Delete</button>
+    <div class="right">
+      <button class="btn" type="button" id="cancelBtn">Cancel</button>
+      <button class="btn primary" type="submit" form="form" id="saveBtn">Save task</button>
+    </div>
+  </div>
+</aside>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  const STATUSES = [
+    { id: "todo", label: "To do", color: "var(--muted)" },
+    { id: "progress", label: "In progress", color: "var(--accent)" },
+    { id: "waiting", label: "Waiting / follow-up", color: "var(--warn)" },
+    { id: "done", label: "Done", color: "var(--ok)" }
+  ];
+  const CATEGORIES = ["Customer visit", "Calibration", "Training", "Machine programming", "Repair / troubleshooting", "Report", "Admin", "Other"];
+  const PRI_LABEL = { high: "High", medium: "Medium", low: "Low" };
+  const PRI_RANK = { high: 0, medium: 1, low: 2 };
+  const OTHER = "__other";
+
+  const $ = (id) => document.getElementById(id);
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    if (attrs) for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids.flat()) if (c != null) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+    return el;
+  }
+
+  const state = { tasks: [], notes: {}, members: [], view: "board", quick: "", q: "", who: "", cat: "", pri: "", me: null, role: null, editing: null };
+  let sb = null, channel = null;
+
+  for (const s of STATUSES) $("fStatus").append(h("option", { value: s.id, text: s.label }));
+  for (const c of CATEGORIES) { $("fCategory").append(h("option", { value: c, text: c })); $("fCat").append(h("option", { value: c, text: c })); }
+
+  // ---------- Dates ----------
+  function dayDiff(due) { if (!due) return null; const [y, m, d] = due.split("-").map(Number); const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((new Date(y, m - 1, d) - t) / 86400000); }
+  function fmtDue(due) { const [y, m, d] = due.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: "numeric", month: "short" }); }
+  function fmtTime(iso) { return iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""; }
+  function dueChip(t) {
+    if (!t.due) return null;
+    const n = dayDiff(t.due);
+    if (t.status === "done") return h("span", { class: "chip", text: "Due " + fmtDue(t.due) });
+    if (n < 0) return h("span", { class: "chip overdue", text: "Overdue " + (-n) + "d" });
+    if (n === 0) return h("span", { class: "chip soon", text: "Due today" });
+    if (n <= 2) return h("span", { class: "chip soon", text: "Due " + fmtDue(t.due) });
+    return h("span", { class: "chip", text: "Due " + fmtDue(t.due) });
+  }
+  const codeOf = (t) => "TSK-" + String(t.num || 0).padStart(3, "0");
+  function calUrl(t) {
+    if (!t.due) return null;
+    const a = t.due.replace(/-/g, "");
+    const [y, m, d] = t.due.split("-").map(Number);
+    const n = new Date(y, m - 1, d + 1);
+    const b = n.getFullYear() + String(n.getMonth() + 1).padStart(2, "0") + String(n.getDate()).padStart(2, "0");
+    const details = [t.details, t.customer ? "Customer: " + t.customer : "", "Task " + codeOf(t) + " on the Team Task Board: " + location.href.split("#")[0]].filter(Boolean).join("\n\n");
+    return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(t.title) + "&dates=" + a + "/" + b + "&details=" + encodeURIComponent(details) + (t.customer ? "&location=" + encodeURIComponent(t.customer) : "");
+  }
+
+  // ---------- People ----------
+  function displayName(email) {
+    if (!email) return "";
+    const local = email.split("@")[0].replace(/[._-]+/g, " ").replace(/\d+/g, " ").trim();
+    return (local || email).split(/\s+/).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
+  }
+  function personName(id) { if (!id) return ""; const m = state.members.find(x => x.id === id); return m ? displayName(m.email) : "Former member"; }
+  function initials(s) { return (s || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(""); }
+  function assigneeName(t) { return t.assignee ? personName(t.assignee) : (t.assignee_label || ""); }
+  function whoNode(t) {
+    const name = assigneeName(t);
+    if (!name) return h("span", { class: "who" }, h("span", { text: "Unassigned" }));
+    return h("span", { class: "who", title: t.assignee ? (state.members.find(x => x.id === t.assignee) || {}).email || "" : "" }, h("span", { class: "ini", text: initials(name) }), h("span", { text: name + (t.assignee === state.me ? " (you)" : "") }));
+  }
+  function fillMemberSelects() {
+    const keepWho = $("fWho").value;
+    $("fWho").replaceChildren(h("option", { value: "", text: "Everyone" }), h("option", { value: "none", text: "Unassigned" }),
+      ...state.members.map(m => h("option", { value: m.id, text: displayName(m.email) + (m.id === state.me ? " (you)" : "") })));
+    $("fWho").value = keepWho;
+    $("fAssignee").replaceChildren(h("option", { value: "", text: "Unassigned" }),
+      ...state.members.map(m => h("option", { value: m.id, text: displayName(m.email) + (m.id === state.me ? " (you)" : "") })),
+      h("option", { value: OTHER, text: "Someone else…" }));
+  }
+
+  // ---------- Filtering & rendering ----------
+  const isMine = (t) => state.me && t.assignee === state.me;
+  function visible() {
+    const q = state.q.trim().toLowerCase();
+    return state.tasks.filter(t => {
+      if (state.cat && t.category !== state.cat) return false;
+      if (state.pri && t.priority !== state.pri) return false;
+      if (state.who === "none" && (t.assignee || t.assignee_label)) return false;
+      if (state.who && state.who !== "none" && t.assignee !== state.who) return false;
+      if (state.quick === "open" && t.status === "done") return false;
+      if (state.quick === "overdue" && !(t.status !== "done" && t.due && dayDiff(t.due) < 0)) return false;
+      if (state.quick === "week") { const n = dayDiff(t.due); if (t.status === "done" || n == null || n < 0 || n > 7) return false; }
+      if (state.quick === "mine" && !isMine(t)) return false;
+      if (q) {
+        const hay = [t.title, t.details, t.customer, t.category, assigneeName(t), codeOf(t), ...(state.notes[t.id] || []).map(n => n.body)].join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }).sort((a, b) => {
+      const ad = a.due || "9999", bd = b.due || "9999";
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      return (PRI_RANK[a.priority] ?? 1) - (PRI_RANK[b.priority] ?? 1);
+    });
+  }
+  function renderStats() {
+    const open = state.tasks.filter(t => t.status !== "done");
+    $("sOpen").textContent = open.length;
+    $("sOver").textContent = open.filter(t => t.due && dayDiff(t.due) < 0).length;
+    $("sWeek").textContent = open.filter(t => { const n = dayDiff(t.due); return n != null && n >= 0 && n <= 7; }).length;
+    $("sMine").textContent = open.filter(isMine).length;
+    document.querySelectorAll("[data-quick]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.quick === state.quick)));
+  }
+  function card(t) {
+    const n = (state.notes[t.id] || []).length;
+    const el = h("button", { class: "card p-" + (t.priority || "medium"), type: "button", draggable: "true", onclick: () => openDrawer(t) },
+      h("div", { class: "row" }, h("span", { class: "code", text: codeOf(t) }), h("span", { class: "chip", text: PRI_LABEL[t.priority] || "Medium" })),
+      h("div", { class: "t", text: t.title }),
+      h("div", { class: "chips" }, dueChip(t), t.category ? h("span", { class: "chip", text: t.category }) : null, t.customer ? h("span", { class: "chip", text: t.customer }) : null),
+      h("div", { class: "row" }, whoNode(t), n ? h("span", { class: "notes-n", text: n + (n === 1 ? " update" : " updates") }) : null)
+    );
+    el.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; });
+    return el;
+  }
+  function renderBoard(list) {
+    const board = h("div", { class: "board" });
+    for (const s of STATUSES) {
+      const items = list.filter(t => t.status === s.id);
+      const lane = h("section", { class: "lane", "aria-label": s.label },
+        h("div", { class: "lane-h" }, h("h2", null, h("span", { class: "dot", style: "background:" + s.color }), s.label), h("span", { class: "n", text: String(items.length) })),
+        items.length ? items.map(card) : h("div", { class: "lane-empty", text: s.id === "done" ? "Finished tasks land here" : "No tasks" }));
+      lane.addEventListener("dragover", (e) => { e.preventDefault(); lane.classList.add("drop"); });
+      lane.addEventListener("dragleave", () => lane.classList.remove("drop"));
+      lane.addEventListener("drop", (e) => { e.preventDefault(); lane.classList.remove("drop"); moveTask(e.dataTransfer.getData("text/plain"), s.id); });
+      board.append(lane);
+    }
+    return board;
+  }
+  function renderList(list) {
+    const st = Object.fromEntries(STATUSES.map(s => [s.id, s]));
+    const body = h("tbody");
+    if (!list.length) body.append(h("tr", null, h("td", { colspan: "7", style: "color:var(--muted);text-align:center;padding:24px", text: "No tasks match these filters." })));
+    for (const t of list) {
+      const s = st[t.status] || st.todo;
+      body.append(h("tr", { class: "r", tabindex: "0", onclick: () => openDrawer(t), onkeydown: (e) => { if (e.key === "Enter") openDrawer(t); } },
+        h("td", null, h("span", { class: "code", text: codeOf(t) })),
+        h("td", null, h("b", { text: t.title })),
+        h("td", null, h("span", { class: "status-pill", style: "color:" + s.color + ";border:1px solid currentColor", text: s.label })),
+        h("td", null, whoNode(t)),
+        h("td", { class: "num" }, dueChip(t) || "–"),
+        h("td", null, PRI_LABEL[t.priority] || "Medium"),
+        h("td", null, t.customer || "–")));
+    }
+    return h("div", { class: "list-wrap" }, h("table", { class: "list" },
+      h("thead", null, h("tr", null, ["ID", "Task", "Status", "Assigned to", "Due", "Priority", "Customer"].map(x => h("th", { text: x })))), body));
+  }
+  function render() {
+    renderStats();
+    const list = visible();
+    $("main").replaceChildren(state.view === "board" ? renderBoard(list) : renderList(list));
+    const customers = [...new Set(state.tasks.map(t => t.customer).filter(Boolean))].sort();
+    $("customerList").replaceChildren(...customers.map(c => h("option", { value: c })));
+    if (state.editing) { const t = current(); if (t) { renderThread(); renderMeta(t); } }
+  }
+
+  let toastTimer;
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600); }
+  function notice(msg) { const n = $("notice"); n.textContent = msg || ""; n.hidden = !msg; }
+  function fail(what, err) { console.error(err); toast(what + ": " + ((err && err.message) || "check your connection and try again")); }
+
+  // ---------- Drawer ----------
+  const current = () => state.tasks.find(t => t.id === state.editing);
+  const canDelete = (t) => state.role === "admin" || t.created_by === state.me;
+  function renderMeta(t) {
+    $("metaLine").textContent = "Created " + fmtTime(t.created_at) + " by " + (personName(t.created_by) || "someone") +
+      (t.updated_at && t.updated_at !== t.created_at ? " · Last updated " + fmtTime(t.updated_at) + " by " + (personName(t.updated_by) || "someone") : "");
+    const url = calUrl(t); $("calLink").hidden = !url; if (url) $("calLink").href = url;
+  }
+  function openDrawer(t) {
+    state.editing = t ? t.id : null;
+    $("dTitle").textContent = t ? "Task details" : "New task";
+    $("dCode").textContent = t ? codeOf(t) : "";
+    $("fTitle").value = t ? t.title : "";
+    $("fDesc").value = t ? t.details : "";
+    $("fStatus").value = t ? t.status : "todo";
+    $("fPriority").value = t ? t.priority : "medium";
+    $("fDue").value = t && t.due ? t.due : "";
+    $("fCategory").value = t ? (CATEGORIES.includes(t.category) ? t.category : "Other") : "Customer visit";
+    $("fCustomer").value = t ? t.customer : "";
+    if (t && t.assignee && state.members.some(m => m.id === t.assignee)) $("fAssignee").value = t.assignee;
+    else if (t && t.assignee_label) { $("fAssignee").value = OTHER; }
+    else $("fAssignee").value = t ? "" : (state.me || "");
+    $("fAssigneeLabel").value = t ? t.assignee_label : "";
+    $("otherWrap").hidden = $("fAssignee").value !== OTHER;
+    $("followSec").hidden = !t;
+    $("delBtn").hidden = !(t && canDelete(t));
+    $("confirmDel").hidden = true;
+    $("noteText").value = "";
+    $("calLink").hidden = true;
+    $("metaLine").textContent = "";
+    if (t) { renderMeta(t); renderThread(); }
+    $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false"); $("scrim").classList.add("open");
+    setTimeout(() => $("fTitle").focus(), 50);
+  }
+  function closeDrawer() { state.editing = null; $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); $("scrim").classList.remove("open"); }
+  function renderThread() {
+    const notes = (state.notes[state.editing] || []).slice().sort((a, b) => b.created_at < a.created_at ? -1 : 1);
+    $("thread").replaceChildren(...(notes.length ? notes.map(n => h("div", { class: "note" },
+      h("div", { class: "meta" }, h("b", { text: personName(n.created_by) || "Someone" }),
+        h("span", null, fmtTime(n.created_at), (state.role === "admin" || n.created_by === state.me) ? [" · ", h("button", { class: "del", type: "button", text: "Delete", onclick: () => deleteNote(n) })] : null)),
+      h("p", { text: n.body }))) : [h("div", { class: "hint", text: "No updates yet. Post one so the team knows where this stands." })]));
+  }
+  $("fAssignee").addEventListener("change", () => { $("otherWrap").hidden = $("fAssignee").value !== OTHER; if (!$("otherWrap").hidden) $("fAssigneeLabel").focus(); });
+
+  // ---------- Writes ----------
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = $("fTitle").value.trim();
+    if (!title) { $("fTitle").focus(); return; }
+    const a = $("fAssignee").value;
+    const row = {
+      title, details: $("fDesc").value.trim(), status: $("fStatus").value, priority: $("fPriority").value,
+      due: $("fDue").value || null, category: $("fCategory").value, customer: $("fCustomer").value.trim(),
+      assignee: a && a !== OTHER ? a : null, assignee_label: a === OTHER ? $("fAssigneeLabel").value.trim() : ""
+    };
+    $("saveBtn").disabled = true;
+    const r = state.editing ? await sb.from("tasks").update(row).eq("id", state.editing) : await sb.from("tasks").insert(row);
+    $("saveBtn").disabled = false;
+    if (r.error) return fail("Couldn't save the task", r.error);
+    toast(state.editing ? "Task updated" : "Task added");
+    closeDrawer();
+    reload();
+  });
+  $("noteBtn").addEventListener("click", async () => {
+    const body = $("noteText").value.trim();
+    if (!state.editing || !body) return;
+    $("noteBtn").disabled = true;
+    const r = await sb.from("task_notes").insert({ task_id: state.editing, body });
+    $("noteBtn").disabled = false;
+    if (r.error) return fail("Couldn't post the update", r.error);
+    $("noteText").value = "";
+    toast("Update posted");
+    reload();
+  });
+  async function deleteNote(n) {
+    const r = await sb.from("task_notes").delete().eq("id", n.id);
+    if (r.error) return fail("Couldn't delete the note", r.error);
+    reload();
+  }
+  async function moveTask(id, status) {
+    const t = state.tasks.find(x => x.id === id);
+    if (!t || t.status === status) return;
+    t.status = status; render();
+    const r = await sb.from("tasks").update({ status }).eq("id", id);
+    if (r.error) { fail("Couldn't move the task", r.error); return reload(); }
+    toast("Moved to " + STATUSES.find(s => s.id === status).label);
+  }
+  $("delBtn").addEventListener("click", () => { $("confirmDel").hidden = false; });
+  $("delNo").addEventListener("click", () => { $("confirmDel").hidden = true; });
+  $("delYes").addEventListener("click", async () => {
+    const r = await sb.from("tasks").delete().eq("id", state.editing).select("id");
+    if (r.error) return fail("Couldn't delete the task", r.error);
+    if (!r.data || !r.data.length) return toast("Only the person who created this task, or an admin, can delete it.");
+    toast("Task deleted"); closeDrawer(); reload();
+  });
+
+  // ---------- UI events ----------
+  $("newBtn").addEventListener("click", () => openDrawer(null));
+  $("dClose").addEventListener("click", closeDrawer);
+  $("cancelBtn").addEventListener("click", closeDrawer);
+  $("scrim").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("drawer").classList.contains("open")) closeDrawer(); });
+  $("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+  $("fWho").addEventListener("change", (e) => { state.who = e.target.value; render(); });
+  $("fCat").addEventListener("change", (e) => { state.cat = e.target.value; render(); });
+  $("fPri").addEventListener("change", (e) => { state.pri = e.target.value; render(); });
+  document.querySelectorAll("[data-quick]").forEach(b => b.addEventListener("click", () => { state.quick = state.quick === b.dataset.quick ? "" : b.dataset.quick; render(); }));
+  function setView(v) { state.view = v; document.querySelectorAll("[data-view]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.view === v))); }
+  document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => { setView(b.dataset.view); try { localStorage.setItem("ttb-view", state.view); } catch (_) {} render(); }));
+  try { const v = localStorage.getItem("ttb-view"); if (v === "list" || v === "board") setView(v); } catch (_) {}
+
+  // ---------- Data ----------
+  async function reload() {
+    const [t, n] = await Promise.all([
+      sb.from("tasks").select("*").order("num"),
+      sb.from("task_notes").select("*").order("created_at")
+    ]);
+    if (t.error || n.error) {
+      const err = t.error || n.error;
+      notice(/relation|does not exist|schema cache/i.test(err.message) ? "The task tables are not set up yet. Run supabase/tasks.sql once in the Supabase SQL Editor." : "Could not load tasks: " + err.message);
+      return;
+    }
+    notice("");
+    state.tasks = t.data || [];
+    state.notes = {};
+    for (const x of n.data || []) (state.notes[x.task_id] = state.notes[x.task_id] || []).push(x);
+    render();
+  }
+  let reloadTimer;
+  const reloadSoon = () => { clearTimeout(reloadTimer); reloadTimer = setTimeout(reload, 400); };
+
+  // ---------- Login ----------
+  function gate(mode, msg) {
+    $("gate").hidden = false; $("gate-login").hidden = mode !== "login"; $("gate-pending").hidden = mode !== "pending";
+    $("gate-msg").hidden = !msg; $("gate-msg").textContent = msg || "";
+  }
+  let user = null;
+  async function enter(u) {
+    user = u;
+    const p = await sb.from("profiles").select("role,email").eq("id", u.id).maybeSingle();
+    if (p.error) return gate("login", "Could not check your account: " + p.error.message);
+    const role = p.data && p.data.role;
+    if (role !== "admin" && role !== "viewer") return gate("pending");
+    state.me = u.id; state.role = role;
+    const m = await sb.rpc("team_members");
+    state.members = m.error ? [{ id: u.id, email: u.email }] : (m.data || []);
+    fillMemberSelects();
+    $("me").replaceChildren(h("span", { class: "ini", style: "width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700", text: initials(displayName(u.email)) }), h("span", { text: u.email }));
+    $("gate").hidden = true;
+    await reload();
+    if (m.error) notice("The task tables are not set up yet. Run supabase/tasks.sql once in the Supabase SQL Editor.");
+    if (!channel) {
+      channel = sb.channel("tasks-board")
+        .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, reloadSoon)
+        .on("postgres_changes", { event: "*", schema: "public", table: "task_notes" }, reloadSoon)
+        .subscribe();
+    }
+  }
+  async function logout() { try { await sb.auth.signOut(); } catch (_) {} location.reload(); }
+  function start() {
+    if (!window.supabase || !window.supabase.createClient || !window.APP_CONFIG) return gate("login", "The login service did not load. Check your internet connection and reload the page.");
+    sb = window.supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_ANON_KEY);
+    gate("login");
+    sb.auth.getSession().then(r => { const s = r.data && r.data.session; if (s && s.user && !user) enter(s.user); });
+    $("gate-login").addEventListener("submit", async (e) => {
+      e.preventDefault(); $("g-btn").disabled = true;
+      const r = await sb.auth.signInWithPassword({ email: $("g-email").value.trim(), password: $("g-pass").value });
+      $("g-btn").disabled = false;
+      if (r.error) gate("login", r.error.message === "Invalid login credentials" ? "Wrong email or password." : r.error.message); else enter(r.data.user);
+    });
+    $("g-again").onclick = () => user && enter(user);
+    $("g-out").onclick = logout;
+    $("logoutBtn").onclick = logout;
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && state.me) { reload(); } });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+})();
+</script>
+</body>
+</html>
