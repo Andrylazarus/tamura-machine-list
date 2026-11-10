@@ -53,7 +53,7 @@ const sortTasks = (a, b) => (RANK[a.priority] ?? 1) - (RANK[b.priority] ?? 1) ||
 const [openRows, profiles, todayRows] = await Promise.all([
   api("tasks?select=*&status=in.(todo,progress)"),
   api("profiles?select=id,email,role"),
-  api(`tasks?select=*&kind=eq.activity&due=eq.${today}&order=start_time.asc.nullsfirst`).catch(() => [])
+  api(`tasks?select=*&kind=eq.activity&due=eq.${today}&order=start_time.asc.nullsfirst`).catch((e) => { console.log("Could not read activities (run the activities part of supabase/tasks.sql): " + e.message.slice(0, 200)); return []; })
 ]);
 const tasks = openRows.filter((t) => t.kind !== "activity");
 const activities = todayRows;
@@ -95,8 +95,12 @@ ${list.map((t) => rowHtml(t, showWho)).join("")}
 }
 const hm = (v) => (v || "").slice(0, 5);
 const timeRange = (a) => (a.start_time ? hm(a.start_time) + (a.end_time ? " – " + hm(a.end_time) : "") : "All day");
+function partHeader(title, sub) {
+  return `<tr><td style="padding:28px 28px 0;${FONT}">
+  <div style="font-size:16px;font-weight:700;color:${C.ink};border-bottom:2px solid ${C.ink};padding-bottom:6px">${esc(title)}${sub ? ` <span style="font-size:12px;font-weight:500;color:${C.muted}">${esc(sub)}</span>` : ""}</div></td></tr>`;
+}
 function scheduleHtml(list, showWho) {
-  if (!list.length) return "";
+  if (!list.length) return `<tr><td style="padding:14px 28px 0;${FONT}font-size:13px;color:${C.muted}">No activities scheduled for today. <a href="${esc(SCHEDULE_URL)}" style="color:${C.accent};text-decoration:none">Open schedule →</a></td></tr>`;
   const rows = list.map((a) => {
     const who = emailOf[a.assignee] ? name(emailOf[a.assignee]) : a.assignee_label || "";
     const meta = [a.customer, showWho ? who : "", a.category].filter(Boolean).map(esc).join(" &nbsp;·&nbsp; ");
@@ -111,7 +115,7 @@ function scheduleHtml(list, showWho) {
   }).join("");
   return `<tr><td style="padding:22px 28px 0">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
-  <tr><td style="${FONT}font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${C.accent};padding-bottom:8px">Today's schedule &nbsp;<span style="color:${C.muted};font-weight:500">${list.length}</span></td>
+  <tr><td style="${FONT}font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${C.accent};padding-bottom:8px">Today &nbsp;<span style="color:${C.muted};font-weight:500">${list.length}</span></td>
   <td align="right" style="${FONT}font-size:12px;padding-bottom:8px"><a href="${esc(SCHEDULE_URL)}" style="color:${C.accent};text-decoration:none">Full schedule →</a></td></tr>
 </table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid ${C.line};border-radius:6px;background:#f7f9ff">${rows}</table></td></tr>`;
@@ -131,7 +135,7 @@ function buildEmail(greetName, list, showWho, acts = []) {
   const progress = list.filter((t) => t.status === "progress" && !urgent(t));
   const todo = list.filter((t) => t.status === "todo" && !urgent(t));
   const high = list.filter((t) => t.priority === "high").length;
-  const subject = `Tasks for ${short(today)}: ${acts.length ? `${acts.length} on today's schedule, ` : ""}${list.length} open${high ? `, ${high} high priority` : ""}${soon.length ? `, ${soon.length} due soon` : ""}`;
+  const subject = `Schedule & tasks for ${short(today)}: ${acts.length} ${acts.length === 1 ? "activity" : "activities"} today, ${list.length} open task${list.length === 1 ? "" : "s"}${high ? `, ${high} high priority` : ""}${soon.length ? `, ${soon.length} due soon` : ""}`;
   const overdue = list.filter((t) => left(t) != null && left(t) < 0).length;
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.bg}">
@@ -141,16 +145,18 @@ function buildEmail(greetName, list, showWho, acts = []) {
 <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:#ffffff;border:1px solid ${C.line};border-radius:8px;overflow:hidden">
   <tr><td bgcolor="${C.navy}" style="background:${C.navy};padding:22px 28px;${FONT}">
     <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9fb3d1">PT. Tamura Trade Indonesia</div>
-    <div style="font-size:20px;font-weight:700;color:#ffffff;padding-top:6px">Daily Task Summary</div>
+    <div style="font-size:20px;font-weight:700;color:#ffffff;padding-top:6px">Daily Schedule &amp; Tasks</div>
     <div style="font-size:13px;color:#c9d5e8;padding-top:4px">${esc(longDate)}</div>
   </td></tr>
-  <tr><td style="padding:22px 28px 0;${FONT}font-size:14px;color:${C.ink}">Good morning${greetName ? ", " + esc(greetName) : ""}. Here is ${acts.length ? "today's schedule and " : ""}the open task list.</td></tr>
-  <tr><td style="padding:16px 28px 0">
+  <tr><td style="padding:22px 28px 0;${FONT}font-size:14px;color:${C.ink}">Good morning${greetName ? ", " + esc(greetName) : ""}. Here is today's schedule and your open tasks.</td></tr>
+  ${partHeader("1. Schedule", "activities today")}
+  ${scheduleHtml(acts, showWho)}
+  ${partHeader("2. Tasks", list.length ? `${list.length} open` : "")}
+  ${list.length ? `  <tr><td style="padding:14px 28px 0">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f7f9fc" style="background:#f7f9fc;border:1px solid ${C.line};border-radius:6px">
       <tr>${stat("OPEN", list.length, C.ink)}${stat("HIGH PRIORITY", high, high ? C.red : C.muted)}${stat("DUE SOON", soon.length - overdue, soon.length - overdue ? C.amber : C.muted)}${stat("OVERDUE", overdue, overdue ? C.red : C.muted)}</tr>
     </table>
-  </td></tr>
-  ${scheduleHtml(acts, showWho)}
+  </td></tr>` : `<tr><td style="padding:14px 28px 0;${FONT}font-size:13px;color:${C.muted}">No open tasks. Nice work.</td></tr>`}
   ${section(`Needs attention · due within ${SOON} days or overdue`, soon, showWho, C.red)}
   ${section("In progress", progress, showWho, C.accent)}
   ${section("To do", todo, showWho)}
@@ -168,7 +174,8 @@ function buildEmail(greetName, list, showWho, acts = []) {
 </td></tr></table>
 </body></html>`;
   const text = `Good morning${greetName ? ", " + greetName : ""}. ${longDate}\n` +
-    (acts.length ? `\nTODAY'S SCHEDULE (${acts.length})\n` + acts.map((a) => `- ${timeRange(a)}  ${a.title}${a.customer ? " | " + a.customer : ""}`).join("\n") + "\n" : "") +
+    `\n== 1. SCHEDULE (today) ==\n` + (acts.length ? acts.map((a) => `- ${timeRange(a)}  ${a.title}${a.customer ? " | " + a.customer : ""}`).join("\n") : "No activities today.") + "\n" +
+    `\n== 2. TASKS (${list.length} open) ==\n` + (list.length ? "" : "No open tasks.\n") +
     textList(`DUE WITHIN ${SOON} DAYS OR OVERDUE`, soon, showWho) + textList("IN PROGRESS", progress, showWho) + textList("TO DO", todo, showWho) +
     `\nOpen the task board: ${BOARD_URL}\n`;
   return { subject, html, text };

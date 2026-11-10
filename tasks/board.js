@@ -12,6 +12,7 @@
   const PAGE = document.body.dataset.page === "schedule" ? "schedule" : "tasks";
 
   const $ = (id) => document.getElementById(id);
+  const setText = (id, v) => { const el = $(id); if (el) el.textContent = v; };
   function h(tag, attrs, ...kids) {
     const el = document.createElement(tag);
     if (attrs) for (const [k, v] of Object.entries(attrs)) {
@@ -117,17 +118,17 @@
     if (PAGE === "schedule") {
       const acts = state.tasks.filter(isAct);
       const inRange = (t, a, b) => { const n = dayDiff(t.due); return n != null && n >= a && n <= b; };
-      $("sToday").textContent = acts.filter(t => inRange(t, 0, 0)).length;
-      $("sTomorrow").textContent = acts.filter(t => inRange(t, 1, 1)).length;
-      $("sWeek").textContent = acts.filter(t => inRange(t, 0, 6)).length;
-      $("sMineAct").textContent = acts.filter(t => inRange(t, 0, 6) && t.assignee === state.me).length;
+      setText("sToday", acts.filter(t => inRange(t, 0, 0)).length);
+      setText("sTomorrow", acts.filter(t => inRange(t, 1, 1)).length);
+      setText("sWeek", acts.filter(t => inRange(t, 0, 6)).length);
+      setText("sMineAct", acts.filter(t => inRange(t, 0, 6) && t.assignee === state.me).length);
       return;
     }
     const open = state.tasks.filter(t => !isAct(t) && t.status !== "done");
-    $("sOpen").textContent = open.length;
-    $("sOver").textContent = open.filter(t => t.due && dayDiff(t.due) < 0).length;
-    $("sWeek").textContent = open.filter(t => { const n = dayDiff(t.due); return n != null && n >= 0 && n <= 7; }).length;
-    $("sMine").textContent = open.filter(isMine).length;
+    setText("sOpen", open.length);
+    setText("sOver", open.filter(t => t.due && dayDiff(t.due) < 0).length);
+    setText("sWeek", open.filter(t => { const n = dayDiff(t.due); return n != null && n >= 0 && n <= 7; }).length);
+    setText("sMine", open.filter(isMine).length);
     document.querySelectorAll("[data-quick]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.quick === state.quick)));
   }
   function card(t) {
