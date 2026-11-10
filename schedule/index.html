@@ -42,7 +42,7 @@
       <a class="btn nav-link" href="../tasks/">Task board</a>
       <a class="btn" href="../">Machine List</a>
       <button class="btn" type="button" id="logoutBtn">Log out</button>
-      <button class="btn primary" id="newBtn" type="button">+ New</button>
+      <button class="btn primary" id="newBtn" type="button">+ New activity</button>
     </div>
   </header>
 
@@ -52,7 +52,7 @@
     <div class="stat stat-today"><span class="k">Today</span><span class="v" id="sToday">–</span></div>
     <div class="stat"><span class="k">Tomorrow</span><span class="v" id="sTomorrow">–</span></div>
     <div class="stat"><span class="k">Next 7 days</span><span class="v" id="sWeek">–</span></div>
-    <div class="stat warn"><span class="k">Deadlines in 7 days</span><span class="v" id="sDeadlines">–</span></div>
+    <div class="stat ok"><span class="k">Mine, next 7 days</span><span class="v" id="sMineAct">–</span></div>
   </section>
 
   <div class="toolbar">
@@ -69,7 +69,6 @@
       <option value="medium">Medium</option>
       <option value="low">Low</option>
     </select>
-    <label class="check"><input type="checkbox" id="fDeadlines" checked> Show task deadlines</label>
   </div>
 
   <main id="main"></main>
@@ -154,7 +153,7 @@
     </div>
   </div>
 </aside>
-<button class="fab" id="fab" type="button" aria-label="New task or activity">+ New</button>
+<button class="fab" id="fab" type="button" aria-label="New activity">+ New activity</button>
 <div class="toast" id="toast" role="status"></div>
 
 <script src="../tasks/board.js"></script>

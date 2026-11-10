@@ -25,7 +25,7 @@
     return el;
   }
 
-  const state = { showDeadlines: true, lane: "todo", tasks: [], notes: {}, members: [], view: "board", quick: "", q: "", who: "", cat: "", pri: "", me: null, role: null, editing: null };
+  const state = { showDeadlines: false, lane: "todo", tasks: [], notes: {}, members: [], view: "board", quick: "", q: "", who: "", cat: "", pri: "", me: null, role: null, editing: null };
   let sb = null, channel = null;
 
   for (const s of STATUSES) $("fStatus").append(h("option", { value: s.id, text: s.label }));
@@ -120,7 +120,7 @@
       $("sToday").textContent = acts.filter(t => inRange(t, 0, 0)).length;
       $("sTomorrow").textContent = acts.filter(t => inRange(t, 1, 1)).length;
       $("sWeek").textContent = acts.filter(t => inRange(t, 0, 6)).length;
-      $("sDeadlines").textContent = state.tasks.filter(t => !isAct(t) && t.status !== "done" && inRange(t, 0, 6)).length;
+      $("sMineAct").textContent = acts.filter(t => inRange(t, 0, 6) && t.assignee === state.me).length;
       return;
     }
     const open = state.tasks.filter(t => !isAct(t) && t.status !== "done");
@@ -197,11 +197,11 @@
     for (const t of items) (days[t.due] = days[t.due] || []).push(t);
     const order = (t) => isAct(t) ? (t.start_time ? "0" + t.start_time : "00") : "2";
     const bar = h("div", { class: "sched-bar" },
-      h("p", { class: "hint", text: state.showDeadlines ? "Activities and task deadlines, day by day." : "Activities, day by day." }),
+      h("p", { class: "hint", text: "Visits, training, meetings and other activities, day by day." }),
       h("button", { class: "btn", type: "button", text: state.showPast ? "Hide past days" : "Show past 14 days", onclick: () => { state.showPast = !state.showPast; render(); } }));
     const keys = Object.keys(days).sort();
     if (!keys.length) return h("div", { class: "sched" }, bar, h("div", { class: "sched-empty" },
-      h("p", { style: "margin:0 0 12px", text: "Nothing scheduled yet." }),
+      h("p", { style: "margin:0 0 12px", text: "No activities scheduled yet." }),
       h("button", { class: "btn primary", type: "button", text: "+ Add an activity", onclick: () => openDrawer(null, "activity") })));
     return h("div", { class: "sched" }, bar, keys.map(d => {
       const n = dayDiff(d), lab = dayLabel(d);
@@ -256,7 +256,8 @@
     const t = current();
     $("dTitle").textContent = act ? (t ? "Activity details" : "New activity") : (t ? "Task details" : "New task");
   }
-  document.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => setKind(b.dataset.kind)));
+  // Tasks and activities live on separate pages, so each page only creates its own kind.
+  document.querySelector(".kind-seg").hidden = true;
   function openDrawer(t, kind) {
     state.editing = t ? t.id : null;
     $("dTitle").textContent = t ? "Task details" : "New task";
@@ -268,7 +269,7 @@
     $("fDue").value = t && t.due ? t.due : "";
     $("fStart").value = t ? hm(t.start_time) : "";
     $("fEnd").value = t ? hm(t.end_time) : "";
-    setKind(t ? (isAct(t) ? "activity" : "task") : (kind || "task"));
+    setKind(t ? (isAct(t) ? "activity" : "task") : (PAGE === "schedule" ? "activity" : "task"));
     $("fCategory").value = t ? (CATEGORIES.includes(t.category) ? t.category : "Other") : "Customer visit";
     $("fCustomer").value = t ? t.customer : "";
     if (t && t.assignee && state.members.some(m => m.id === t.assignee)) $("fAssignee").value = t.assignee;
@@ -359,7 +360,6 @@
   const newKind = () => (PAGE === "schedule" ? "activity" : "task");
   $("newBtn").addEventListener("click", () => openDrawer(null, newKind()));
   $("fab").addEventListener("click", () => openDrawer(null, newKind()));
-  if ($("fDeadlines")) $("fDeadlines").addEventListener("change", (e) => { state.showDeadlines = e.target.checked; render(); });
   $("dClose").addEventListener("click", closeDrawer);
   $("cancelBtn").addEventListener("click", closeDrawer);
   $("scrim").addEventListener("click", closeDrawer);
