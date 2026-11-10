@@ -18,7 +18,9 @@ need("SUPABASE_URL", SUPABASE_URL);
 if (!DRY) { need("SMTP_USER", env.SMTP_USER); need("SMTP_PASS", env.SMTP_PASS); }
 
 async function api(path) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } });
+  // New-style keys (sb_secret_…) go in the apikey header only; legacy service_role JWTs also need Authorization.
+  const headers = KEY.startsWith("sb_") ? { apikey: KEY } : { apikey: KEY, Authorization: `Bearer ${KEY}` };
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
   if (!r.ok) throw new Error(`GET ${path}: ${r.status} ${await r.text()}`);
   return r.json();
 }

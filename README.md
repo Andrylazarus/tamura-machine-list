@@ -136,7 +136,7 @@ Every morning at 06:00 WIB, GitHub runs `scripts/daily-tasks.mjs` (`.github/work
 Setup, once:
 1. Create a Gmail **app password** for the sending account: Google Account → Security → 2-Step Verification → App passwords.
 2. In this repository, open **Settings → Secrets and variables → Actions → New repository secret** and add:
-   - `SUPABASE_SERVICE_ROLE_KEY`: from Supabase → Project Settings → API → `service_role`. It stays secret in GitHub and is never in the website code.
+   - `SUPABASE_SERVICE_ROLE_KEY`: from Supabase → Project Settings → API Keys → a **Secret** key (`sb_secret_…`), or the legacy `service_role` key. It stays secret in GitHub and is never in the website code.
    - `SMTP_USER`: the Gmail address that sends the emails.
    - `SMTP_PASS`: the app password from step 1.
    - `REMINDER_CC` (optional): addresses that get the whole team's list every morning, separated by commas, for example a supervisor or team mailbox.
