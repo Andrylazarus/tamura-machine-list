@@ -128,3 +128,19 @@ Supabase's free tier keeps the data but does not give you point-in-time restore.
 - Changes from teammates appear live.
 - A task with a due date has an **Add to Google Calendar** link, so each person can put their own reminder in their calendar.
 - The tables are created by `supabase/tasks.sql`. Run it once in the SQL Editor.
+
+### Email reminders (H-2)
+
+Every day at 07:00 WIB, GitHub runs `scripts/send-reminders.mjs` (`.github/workflows/task-reminders.yml`). For every open task due within 2 days, it emails the assigned person, or the task's creator if nobody with a login is assigned. Each task gets one reminder per due date. If the due date changes, a new reminder is sent.
+
+Setup, once:
+1. Run the latest `supabase/tasks.sql` in the SQL Editor. It adds the `task_reminders` table.
+2. Create a Gmail **app password** for the sending account: Google Account → Security → 2-Step Verification → App passwords.
+3. In this repository, open **Settings → Secrets and variables → Actions → New repository secret** and add:
+   - `SUPABASE_SERVICE_ROLE_KEY`: from Supabase → Project Settings → API → `service_role`. It stays secret in GitHub and is never in the website code.
+   - `SMTP_USER`: the Gmail address that sends the reminders.
+   - `SMTP_PASS`: the app password from step 2.
+   - `REMINDER_CC` (optional): addresses to copy on every reminder, separated by commas, for example a team mailbox.
+4. Test it: **Actions → Task reminders → Run workflow**. With *dry run* ticked, it only lists who would be emailed. Untick it to really send.
+
+To change how many days ahead it reminds, edit `DAYS_BEFORE` in the workflow file.
