@@ -38,7 +38,7 @@ const name = (email) => (email || "").split("@")[0].replace(/[._-]+/g, " ").repl
 function dueText(t) {
   const n = left(t);
   if (n == null) return "No due date";
-  if (n < 0) return `OVERDUE ${-n} day${n === -1 ? "" : "s"} (${short(t.due)})`;
+  if (n < 0) return `Overdue ${-n} day${n === -1 ? "" : "s"}`;
   if (n === 0) return "Due TODAY";
   if (n === 1) return "Due tomorrow";
   return `Due ${short(t.due)}`;
@@ -57,19 +57,42 @@ const people = profiles.filter((p) => p.email && (p.role === "admin" || p.role =
 const emailOf = Object.fromEntries(people.map((p) => [p.id, p.email]));
 const ownerOf = (t) => (emailOf[t.assignee] ? t.assignee : emailOf[t.created_by] ? t.created_by : null);
 
+const FONT = "font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;";
+const C = { ink: "#14213d", muted: "#6b7689", line: "#e4e8ef", bg: "#f2f4f7", navy: "#0f2747", accent: "#1f56c9", red: "#c2412d", amber: "#b7791f", green: "#1d8a5b" };
+const PRI_BG = { high: "#fdecea", medium: "#fdf3e1", low: "#e6f4ec" };
+
 function rowHtml(t, showWho) {
   const n = left(t);
-  const color = n != null && n < 0 ? "#c2412d" : urgent(t) ? "#b7791f" : "#5d6b7e";
-  const who = showWho ? (emailOf[t.assignee] ? name(emailOf[t.assignee]) : t.assignee_label || "Unassigned") : "";
   const pc = PRI_COLOR[t.priority] || PRI_COLOR.medium;
-  return `<tr><td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top;white-space:nowrap"><span style="display:inline-block;padding:2px 8px;border-radius:10px;border:1px solid ${pc};color:${pc};font-size:11px;font-weight:700;letter-spacing:.04em">${esc((PRI[t.priority] || "Medium").toUpperCase())}</span><br><span style="font-family:Consolas,monospace;font-size:11px;color:#5d6b7e">${esc(code(t))}</span></td>
-<td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top"><b>${esc(t.title)}</b>${t.customer ? `<br><span style="font-size:12px;color:#5d6b7e">${esc(t.customer)}</span>` : ""}${who ? `<br><span style="font-size:12px;color:#5d6b7e">${esc(who)}</span>` : ""}</td>
-<td style="padding:8px 10px;border-bottom:1px solid #e3e8ef;vertical-align:top;white-space:nowrap;color:${color};font-weight:${urgent(t) ? 700 : 400}">${esc(dueText(t))}</td></tr>`;
+  const dueColor = n != null && n < 0 ? C.red : urgent(t) ? C.amber : C.muted;
+  const who = emailOf[t.assignee] ? name(emailOf[t.assignee]) : t.assignee_label || "Unassigned";
+  const meta = [code(t), t.customer, showWho ? who : ""].filter(Boolean).map(esc).join(" &nbsp;·&nbsp; ");
+  return `<tr>
+<td width="4" bgcolor="${pc}" style="background:${pc};width:4px;font-size:0;line-height:0">&nbsp;</td>
+<td style="padding:12px 14px;border-bottom:1px solid ${C.line};${FONT}">
+  <div style="font-size:14px;font-weight:600;color:${C.ink};line-height:1.35">${esc(t.title)}</div>
+  <div style="font-size:12px;color:${C.muted};padding-top:3px">${meta}</div>
+</td>
+<td width="92" align="center" valign="middle" style="padding:12px 6px;border-bottom:1px solid ${C.line};${FONT}">
+  <span style="display:inline-block;padding:3px 8px;border-radius:4px;background:${PRI_BG[t.priority] || PRI_BG.medium};color:${pc};font-size:10px;font-weight:700;letter-spacing:.06em">${esc((PRI[t.priority] || "Medium").toUpperCase())}</span>
+</td>
+<td width="120" align="right" valign="middle" style="padding:12px 14px 12px 6px;border-bottom:1px solid ${C.line};${FONT}font-size:12.5px;color:${dueColor};font-weight:${urgent(t) ? 700 : 500};white-space:nowrap">${esc(dueText(t))}</td>
+</tr>`;
 }
-function section(title, list, showWho) {
+function section(title, list, showWho, accent) {
   if (!list.length) return "";
-  return `<h3 style="margin:20px 0 6px;font-size:15px">${esc(title)} <span style="color:#5d6b7e;font-weight:400">(${list.length})</span></h3>
-<table style="border-collapse:collapse;width:100%;font-size:14px">${list.map((t) => rowHtml(t, showWho)).join("")}</table>`;
+  return `<tr><td style="padding:22px 28px 0">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
+  <tr><td style="${FONT}font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${accent || C.muted};padding-bottom:8px">${esc(title)} &nbsp;<span style="color:${C.muted};font-weight:500">${list.length}</span></td></tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid ${C.line};border-radius:6px">
+${list.map((t) => rowHtml(t, showWho)).join("")}
+</table></td></tr>`;
+}
+function stat(label, value, color) {
+  return `<td width="25%" align="center" style="padding:14px 4px;${FONT}">
+  <div style="font-size:24px;font-weight:700;color:${color};line-height:1">${value}</div>
+  <div style="font-size:11px;color:${C.muted};padding-top:5px;letter-spacing:.04em">${esc(label)}</div></td>`;
 }
 function textList(title, list, showWho) {
   if (!list.length) return "";
@@ -82,15 +105,40 @@ function buildEmail(greetName, list, showWho) {
   const todo = list.filter((t) => t.status === "todo" && !urgent(t));
   const high = list.filter((t) => t.priority === "high").length;
   const subject = `Tasks for ${short(today)}: ${list.length} open${high ? `, ${high} high priority` : ""}${soon.length ? `, ${soon.length} due soon` : ""}`;
-  const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#16202e;max-width:640px">
-<p style="margin:0 0 4px;font-size:12px;color:#5d6b7e;letter-spacing:.08em;text-transform:uppercase">PT. Tamura Trade Indonesia · Team Task Board</p>
-<h2 style="margin:0 0 4px;font-size:20px">Good morning${greetName ? ", " + esc(greetName) : ""}</h2>
-<p style="margin:0;color:#5d6b7e">${esc(longDate)}</p>
-${section(`⚠ Due within ${SOON} days or overdue`, soon, showWho)}
-${section("In progress", progress, showWho)}
-${section("To do", todo, showWho)}
-<p style="margin:22px 0 8px"><a href="${esc(BOARD_URL)}" style="background:#1f56c9;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none;font-weight:600">Open the task board</a></p>
-<p style="font-size:12px;color:#5d6b7e">Sent every morning at 06:00. Move tasks to Done on the board to drop them from this list.</p></div>`;
+  const overdue = list.filter((t) => left(t) != null && left(t) < 0).length;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
+<body style="margin:0;padding:0;background:${C.bg}">
+<div style="display:none;max-height:0;overflow:hidden">${esc(`${list.length} open tasks, ${high} high priority, ${soon.length} due soon`)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.bg}" style="background:${C.bg}">
+<tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:#ffffff;border:1px solid ${C.line};border-radius:8px;overflow:hidden">
+  <tr><td bgcolor="${C.navy}" style="background:${C.navy};padding:22px 28px;${FONT}">
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9fb3d1">PT. Tamura Trade Indonesia</div>
+    <div style="font-size:20px;font-weight:700;color:#ffffff;padding-top:6px">Daily Task Summary</div>
+    <div style="font-size:13px;color:#c9d5e8;padding-top:4px">${esc(longDate)}</div>
+  </td></tr>
+  <tr><td style="padding:22px 28px 0;${FONT}font-size:14px;color:${C.ink}">Good morning${greetName ? ", " + esc(greetName) : ""}. Here ${list.length === 1 ? "is the open task" : "are the open tasks"} for today.</td></tr>
+  <tr><td style="padding:16px 28px 0">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f7f9fc" style="background:#f7f9fc;border:1px solid ${C.line};border-radius:6px">
+      <tr>${stat("OPEN", list.length, C.ink)}${stat("HIGH PRIORITY", high, high ? C.red : C.muted)}${stat("DUE SOON", soon.length - overdue, soon.length - overdue ? C.amber : C.muted)}${stat("OVERDUE", overdue, overdue ? C.red : C.muted)}</tr>
+    </table>
+  </td></tr>
+  ${section(`Needs attention · due within ${SOON} days or overdue`, soon, showWho, C.red)}
+  ${section("In progress", progress, showWho, C.accent)}
+  ${section("To do", todo, showWho)}
+  <tr><td align="center" style="padding:28px 28px 8px">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td bgcolor="${C.accent}" style="background:${C.accent};border-radius:6px">
+        <a href="${esc(BOARD_URL)}" style="display:inline-block;padding:12px 26px;${FONT}font-size:14px;font-weight:600;color:#ffffff;text-decoration:none">Open Task Board</a>
+      </td></tr></table>
+  </td></tr>
+  <tr><td style="padding:16px 28px 22px;${FONT}font-size:11.5px;line-height:1.5;color:${C.muted};border-top:1px solid ${C.line}">
+    Sent automatically every morning at 06:00 WIB. Tasks marked <b>Done</b> on the board no longer appear here.<br>
+    Priority: <span style="color:${C.red};font-weight:700">■</span> High &nbsp; <span style="color:${C.amber};font-weight:700">■</span> Medium &nbsp; <span style="color:${C.green};font-weight:700">■</span> Low
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
   const text = `Good morning${greetName ? ", " + greetName : ""}. ${longDate}\n` +
     textList(`DUE WITHIN ${SOON} DAYS OR OVERDUE`, soon, showWho) + textList("IN PROGRESS", progress, showWho) + textList("TO DO", todo, showWho) +
     `\nOpen the task board: ${BOARD_URL}\n`;
@@ -116,6 +164,6 @@ for (const p of people) {
 }
 const cc = (env.REMINDER_CC || "").split(",").map((s) => s.trim()).filter(Boolean);
 if (cc.length && tasks.length) {
-  try { await send(cc.join(", "), buildEmail("team", tasks, true)); } catch (e) { failed++; console.error(`- team summary FAILED: ${e.message}`); }
+  try { await send(cc.join(", "), buildEmail("", tasks, true)); } catch (e) { failed++; console.error(`- team summary FAILED: ${e.message}`); }
 }
 if (failed) process.exit(1);
