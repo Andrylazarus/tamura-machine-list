@@ -1,10 +1,10 @@
 name: Daily task email
 
-# Every day at 08:00 WIB (01:00 UTC): email each person their To do and In progress tasks.
+# Every day at 06:00 WIB (23:00 UTC the day before): email each person their To do and In progress tasks.
 # GitHub can start scheduled jobs a few minutes late.
 on:
   schedule:
-    - cron: "0 1 * * *"
+    - cron: "0 23 * * *"
   workflow_dispatch:
     inputs:
       dry_run:

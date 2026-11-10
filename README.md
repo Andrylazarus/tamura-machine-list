@@ -129,9 +129,9 @@ Supabase's free tier keeps the data but does not give you point-in-time restore.
 - A task with a due date has an **Add to Google Calendar** link, so each person can put their own reminder in their calendar.
 - The tables are created by `supabase/tasks.sql`. Run it once in the SQL Editor.
 
-### Daily task email (08:00)
+### Daily task email (06:00)
 
-Every morning at 08:00 WIB, GitHub runs `scripts/daily-tasks.mjs` (`.github/workflows/daily-tasks.yml`). Each person with an approved account gets one email listing their **To do** and **In progress** tasks. Tasks due within 2 days, or overdue, are flagged at the top. People with no open tasks get no email. A task assigned to someone without a login goes to the person who created it. GitHub sometimes starts scheduled jobs a few minutes late.
+Every morning at 06:00 WIB, GitHub runs `scripts/daily-tasks.mjs` (`.github/workflows/daily-tasks.yml`). Each person with an approved account gets one email listing their **To do** and **In progress** tasks. Tasks due within 2 days, or overdue, are flagged at the top. People with no open tasks get no email. A task assigned to someone without a login goes to the person who created it. GitHub sometimes starts scheduled jobs a few minutes late.
 
 Setup, once:
 1. Create a Gmail **app password** for the sending account: Google Account → Security → 2-Step Verification → App passwords.
@@ -142,4 +142,4 @@ Setup, once:
    - `REMINDER_CC` (optional): addresses that get the whole team's list every morning, separated by commas, for example a supervisor or team mailbox.
 3. Test it: **Actions → Daily task email → Run workflow**. With *dry run* ticked, it only lists who would get an email. Untick it to really send.
 
-To change the time, edit the `cron` line in the workflow file. It is in UTC, so 08:00 WIB is `0 1 * * *`. To change what counts as "due soon", edit `DUE_SOON_DAYS`.
+To change the time, edit the `cron` line in the workflow file. It is in UTC, so 06:00 WIB is `0 23 * * *` (23:00 UTC the day before). To change what counts as "due soon", edit `DUE_SOON_DAYS`.

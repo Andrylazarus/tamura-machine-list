@@ -1,4 +1,4 @@
-// Morning task email (08:00 WIB). Each approved user gets their own To do and In progress tasks,
+// Morning task email (06:00 WIB). Each approved user gets their own To do and In progress tasks,
 // with tasks due within DUE_SOON_DAYS days (H-2) flagged at the top. Tasks with no login assigned
 // go to the person who created them. REMINDER_CC (optional) gets the whole team's list.
 import { readFileSync } from "node:fs";
@@ -84,7 +84,7 @@ ${section(`⚠ Due within ${SOON} days or overdue`, soon, showWho)}
 ${section("In progress", progress, showWho)}
 ${section("To do", todo, showWho)}
 <p style="margin:22px 0 8px"><a href="${esc(BOARD_URL)}" style="background:#1f56c9;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none;font-weight:600">Open the task board</a></p>
-<p style="font-size:12px;color:#5d6b7e">Sent every morning at 08:00. Move tasks to Done on the board to drop them from this list.</p></div>`;
+<p style="font-size:12px;color:#5d6b7e">Sent every morning at 06:00. Move tasks to Done on the board to drop them from this list.</p></div>`;
   const text = `Good morning${greetName ? ", " + greetName : ""}. ${longDate}\n` +
     textList(`DUE WITHIN ${SOON} DAYS OR OVERDUE`, soon, showWho) + textList("IN PROGRESS", progress, showWho) + textList("TO DO", todo, showWho) +
     `\nOpen the task board: ${BOARD_URL}\n`;
