@@ -134,7 +134,7 @@ Supabase's free tier keeps the data but does not give you point-in-time restore.
 
 ### Daily task email (06:00)
 
-Every morning at 06:00 WIB, GitHub runs `scripts/daily-tasks.mjs` (`.github/workflows/daily-tasks.yml`). Each person with an approved account gets one email listing their **To do** and **In progress** tasks. Tasks due within 2 days, or overdue, are flagged at the top. People with no open tasks get no email. A task assigned to someone without a login goes to the person who created it. GitHub sometimes starts scheduled jobs a few minutes late.
+Every morning at 06:00 WIB, GitHub runs `scripts/daily-tasks.mjs` (`.github/workflows/daily-tasks.yml`). Each person with an approved account gets one email listing their **To do** and **In progress** tasks. Tasks due within 2 days, or overdue, are flagged at the top. People with no open tasks get no email. A task assigned to someone without a login goes to the person who created it. GitHub's own timer is unreliable, so Supabase starts the job at 06:00 sharp. Set it up once with `supabase/daily-email-cron.sql`, using a GitHub fine-grained token for this repository with **Actions: Read and write**. GitHub's timer still runs at about 06:20 as a backup, and the job never sends the daily email twice on the same day.
 
 Setup, once:
 1. Create a Gmail **app password** for the sending account: Google Account → Security → 2-Step Verification → App passwords.

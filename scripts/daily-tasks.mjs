@@ -206,6 +206,20 @@ async function send(to, mail) {
   console.log(`- emailed ${to}: ${mail.subject}`);
 }
 
+// A daily (scheduled) run sends at most once per day: Supabase starts it at 06:00 and GitHub's timer is a backup.
+if (env.SCHEDULED === "true" && !DRY) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/daily_email_runs`, {
+    method: "POST",
+    headers: { ...(KEY.startsWith("sb_") ? { apikey: KEY } : { apikey: KEY, Authorization: `Bearer ${KEY}` }), "Content-Type": "application/json", Prefer: "resolution=ignore-duplicates,return=representation" },
+    body: JSON.stringify({ day: today })
+  });
+  if (r.ok) {
+    const rows = await r.json();
+    if (!rows.length) { console.log(`${today}: today's email was already sent, nothing to do.`); process.exit(0); }
+  } else {
+    console.log(`Could not check daily_email_runs (run supabase/daily-email-cron.sql): ${r.status}. Sending anyway.`);
+  }
+}
 console.log(`${today}: ${activities.length} activity(ies) this week, ${tasks.length} open task(s)${DRY ? " (dry run, nothing is sent)" : ""}.`);
 let failed = 0;
 for (const p of people) {

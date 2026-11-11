@@ -1,16 +1,21 @@
 name: Daily task email
 
-# Every day at 06:00 WIB (23:00 UTC the day before): email each person their To do and In progress tasks.
-# GitHub can start scheduled jobs a few minutes late.
+# 06:00 WIB every day. Supabase (pg_cron, see supabase/daily-email-cron.sql) starts this job at
+# 06:00 sharp. GitHub's own timer below is only a backup at about 06:20, because GitHub sometimes
+# skips or delays scheduled jobs. The script sends at most one scheduled email per day.
 on:
   schedule:
-    - cron: "0 23 * * *"
+    - cron: "20 23 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
         description: "Only show who would get an email, send nothing"
         type: boolean
         default: true
+      scheduled:
+        description: "Daily run (skipped if today's email was already sent)"
+        type: boolean
+        default: false
 
 jobs:
   send:
@@ -30,3 +35,4 @@ jobs:
           REMINDER_CC: ${{ secrets.REMINDER_CC }}
           DUE_SOON_DAYS: "2"
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+          SCHEDULED: ${{ (github.event_name == 'schedule' || inputs.scheduled) && 'true' || 'false' }}
