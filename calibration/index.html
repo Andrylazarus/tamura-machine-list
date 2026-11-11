@@ -824,7 +824,7 @@ async function importEntries(entries){const notes=[];entries=await expandZips(en
     if(n){tg.count=b&&b.count;tg.rows=Array.from({length:Math.max(n,8)},(_,i)=>{const r={d3:"",d2:"",vis:"",pzt:["","","",""]};if(i>=n)return r;
       if(b&&b.d3[i]){r.d3=b.d3[i].v;r.w3=b.d3[i].warn}if(b&&b.d2[i]){r.d2=b.d2[i].v;r.w2=b.d2[i].warn}
       if(z&&z[i]){r.vis=z[i].vis;r.pzt=[0,1,2,3].map(j=>z[i].pzt[j]||"")}return r})}
-    if(h&&h.length)tg.height=h.map(x=>x.avg);
+    if(T.height){const hb=parseHeightBlocks(T.height),J=+N.spec.jigH||501.7;if(hb.length){const mean=b=>b.reduce((s,x)=>s+ +x,0)/b.length;tg.height=hb.reduce((a,b)=>Math.abs(mean(b)-J)<Math.abs(mean(a)-J)?b:a).slice()}}
     if(T.dlp){const nm=dlpNomSet.length?dlpNomSet.slice().sort((a,b)=>a-b):dlpNoms();tg.dlp=pickDlp(T.dlp,T.height,nm);if(dlpNomSet.length)N.spec.dlpNoms=nm.join(", ");if(!tg.dlp.length)notes.push(`${sg}: DLP .txt has no height data`)}
     T.dlpImgs.sort((x,y)=>natural(x.rel,y.rel));tg.dlpImgs=[];for(const im of T.dlpImgs){try{tg.dlpImgs.push(await blobToDataURL(im.blob,1400,im.name))}catch(e){(bad[sg]=bad[sg]||[]).push(im.name)}}
     if(!T.bright)notes.push(`${sg}: BRIGHT .txt missing`);if(!T.d3)notes.push(`${sg}: 3D .txt missing`);if(!T.height)notes.push(`${sg}: HEIGHT .txt missing`);
