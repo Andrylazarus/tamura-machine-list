@@ -406,7 +406,10 @@
     if (p.error) return gate("login", "Could not check your account: " + p.error.message);
     const role = p.data && p.data.role;
     if (role !== "admin" && role !== "viewer") return gate("pending");
-    if (!window.APP_IS_OWNER || !(await window.APP_IS_OWNER(u.email))) return gate("login", "This page is private. Go back to the Machine List.");
+    // The task board is open to every approved account; the schedule is for the owner account only.
+    const owner = !!window.APP_IS_OWNER && await window.APP_IS_OWNER(u.email);
+    if (PAGE === "schedule" && !owner) return gate("login", "This page is private. Go back to the Machine List.");
+    if (!owner) document.querySelectorAll(".nav-link, .kind-seg").forEach(el => { el.hidden = true; });
     state.me = u.id; state.role = role;
     const m = await sb.rpc("team_members");
     state.members = m.error ? [{ id: u.id, email: u.email }] : (m.data || []);
