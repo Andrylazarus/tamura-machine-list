@@ -199,6 +199,7 @@ table.stock .c-kind{min-width:230px}
 .drop{border:2px dashed var(--line);border-radius:var(--r);padding:28px 16px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;background:var(--surface-2)}
 .drop.over{border-color:var(--accent);background:var(--accent-soft)}
 .drop strong{font-size:16px}
+.filebtn{flex-direction:row;color:var(--fg);font-size:14px}
 .help{font-size:13px;color:var(--muted);max-width:70ch}
 .preview th{cursor:default}
 .preview table{min-width:560px}

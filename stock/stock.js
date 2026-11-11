@@ -59,6 +59,7 @@
       if (window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) {
         document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = !ok; });
       });
+      $("btnImport").hidden = !isAdmin();
       show("viewApp"); load(); subscribe();
     });
   }
@@ -245,7 +246,7 @@
   $("btnFacets").addEventListener("click", function () { drawer(true); });
   $("btnFacetsClose").addEventListener("click", function () { drawer(false); });
   $("scrim").addEventListener("click", function () { drawer(false); });
-  $("dlgEdit").addEventListener("click", function (e) { if (e.target.closest("[data-close]") || e.target === this) this.close(); });
+  document.querySelectorAll("dialog").forEach(function (d) { d.addEventListener("click", function (e) { if (e.target.closest("[data-close]") || e.target === d) d.close(); }); });
 
   // ---------- add / edit ----------
   var editing = null;
@@ -296,6 +297,98 @@
     q.then(function (res) {
       if (res.error) { toast("Could not save: " + errText(res.error)); return; }
       var o = fromRow(res.data); state.docs.set(o._id, o); render(); $("dlgEdit").close(); toast(editing ? "Item updated" : "Item added");
+    }).finally(function () { btn.disabled = false; });
+  });
+
+  // ---------- import from Excel (admin) ----------
+  var pending = null;
+  function resetImport() { pending = null; $("impPreview").hidden = true; $("impPreview").innerHTML = ""; $("drop").hidden = false; $("btnDoImport").disabled = true; $("btnDoImport").textContent = "Import"; $("impStatus").textContent = ""; $("file").value = ""; }
+  $("btnImport").addEventListener("click", function () { resetImport(); $("dlgImport").showModal(); });
+  var drop = $("drop");
+  ["dragenter", "dragover"].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
+  drop.addEventListener("drop", function (e) { var f = e.dataTransfer.files[0]; if (f) readFile(f); });
+  $("file").addEventListener("change", function () { if (this.files[0]) readFile(this.files[0]); });
+  function readFile(file) {
+    if (typeof XLSX === "undefined") { $("impStatus").textContent = "The Excel reader did not load. Check your internet connection and reload the page."; return; }
+    $("impStatus").textContent = "Reading " + file.name + "…";
+    var fr = new FileReader();
+    fr.onload = function () {
+      try {
+        var wb = XLSX.read(new Uint8Array(fr.result), { type: "array" });
+        showPreview(file.name, wb.SheetNames.map(function (name) {
+          return { name: name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null, blankrows: true }) };
+        }));
+        $("impStatus").textContent = "";
+      } catch (err) { $("impStatus").textContent = "This file could not be read as Excel (" + (err.message || err) + ")."; }
+    };
+    fr.readAsArrayBuffer(file);
+  }
+  function showPreview(fname, sheets) {
+    var brands = uniq(all(), "brand");
+    pending = { file: fname, sheets: sheets.map(function (s) {
+      var res = parseStockSheet(s.name, s.rows), brand = stockBrandFromSheet(s.name, brands);
+      return { name: s.name, items: res.items, warnings: res.warnings, brand: brand, model: stockModelFromTitle(res.title, brand, s.name), include: res.items.length > 0 };
+    }) };
+    $("drop").hidden = true;
+    var h = '<div class="help"><strong style="color:var(--fg)">' + esc(fname) + '</strong>. Check the brand and machine for each sheet, untick sheets you don\'t want, then import.</div>';
+    h += '<div class="tablebox"><table><thead><tr><th style="width:40px"></th><th>Sheet</th><th>Brand</th><th>For machine model</th><th>Items</th></tr></thead><tbody>';
+    pending.sheets.forEach(function (s, i) {
+      var off = s.items.length ? '' : ' disabled';
+      h += '<tr><td><input type="checkbox" data-i="' + i + '" data-p="include" ' + (s.include ? 'checked' : '') + off + ' aria-label="Include sheet ' + esc(s.name) + '" style="width:auto"></td>' +
+        '<td>' + esc(s.name) + (s.warnings.length ? '<div class="sub" style="color:var(--warn)">' + esc(s.warnings.join(" ")) + '</div>' : '') + '</td>' +
+        '<td><input data-i="' + i + '" data-p="brand" list="brandList" value="' + esc(s.brand) + '" placeholder="No brand"' + off + ' aria-label="Brand for sheet ' + esc(s.name) + '"></td>' +
+        '<td><input data-i="' + i + '" data-p="model" list="modelList" value="' + esc(s.model) + '" placeholder="Optional"' + off + ' aria-label="Machine model for sheet ' + esc(s.name) + '"></td>' +
+        '<td class="mono">' + s.items.length + '</td></tr>';
+    });
+    h += '</tbody></table></div><div id="plan" class="help"></div><div class="progress" id="prog" hidden><i></i></div>';
+    $("impPreview").innerHTML = h; $("impPreview").hidden = false;
+    updatePlan();
+  }
+  function planImport() {
+    var ex = {}; all().forEach(function (d) { ex[stockKey(d)] = d; });
+    var add = [], upd = [], seen = {};
+    pending.sheets.forEach(function (s) {
+      if (!s.include) return;
+      s.items.forEach(function (it) {
+        var c = Object.assign({}, it);
+        if (!c.brand) c.brand = s.brand.trim();
+        if (!c.model) c.model = s.model.trim();
+        var k = stockKey(c);
+        if (seen[k]) { seen[k].qty += c.qty; return; }   // the same item twice in the file: add the quantities
+        seen[k] = c;
+        if (ex[k]) { c._id = ex[k]._id; upd.push(c); } else add.push(c);
+      });
+    });
+    return { add: add, upd: upd };
+  }
+  function updatePlan() {
+    var p = planImport(), n = p.add.length + p.upd.length;
+    $("plan").innerHTML = n ? 'Ready: <strong style="color:var(--fg)">' + p.add.length + ' new</strong>' + (p.upd.length ? ', <strong style="color:var(--fg)">' + p.upd.length + ' already in stock</strong> (their quantity and details are replaced by the file)' : '') + '. Nothing is deleted.' : 'Select at least one sheet with items.';
+    $("btnDoImport").disabled = !n; $("btnDoImport").textContent = n ? "Import " + n + " items" : "Import";
+  }
+  $("impPreview").addEventListener("input", function (e) {
+    var i = e.target.dataset.i, p = e.target.dataset.p; if (i == null) return;
+    pending.sheets[i][p] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    updatePlan();
+  });
+  function toDb(it) { var row = {}; FIELDS.forEach(function (f) { row[COL[f] || f] = it[f]; }); return row; }
+  $("btnDoImport").addEventListener("click", function () {
+    var p = planImport(), total = p.add.length + p.upd.length; if (!total) return;
+    var btn = this; btn.disabled = true;
+    var prog = $("prog"), bar = prog.querySelector("i"), done = 0; prog.hidden = false;
+    function tick(n) { done += n; bar.style.width = (done / total * 100) + "%"; $("impStatus").textContent = "Saving… " + Math.round(done / total * 100) + "%"; }
+    var chain = Promise.resolve();
+    for (var i = 0; i < p.add.length; i += 200) (function (chunk) {
+      chain = chain.then(function () { return sb.from("stock_items").insert(chunk.map(toDb)).then(function (r) { if (r.error) throw r.error; tick(chunk.length); }); });
+    })(p.add.slice(i, i + 200));
+    p.upd.forEach(function (it) {
+      chain = chain.then(function () { return sb.from("stock_items").update(toDb(it)).eq("id", it._id).then(function (r) { if (r.error) throw r.error; tick(1); }); });
+    });
+    chain.then(function () {
+      $("dlgImport").close(); toast("Imported " + total + " items"); load();
+    }).catch(function (err) {
+      $("impStatus").textContent = "Import stopped: " + errText(err) + ". Items saved before the error are kept; run the import again to finish."; load();
     }).finally(function () { btn.disabled = false; });
   });
 

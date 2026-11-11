@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="../styles.css?v=20261111n">
+<link rel="stylesheet" href="../styles.css?v=20261111p">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -67,6 +67,8 @@
       <div class="actions">
         <button class="btn" id="btnExport" type="button" title="Download the items shown below as Excel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg><span class="l">Export Excel</span></button>
+        <button class="btn" id="btnImport" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 3h16"/></svg><span class="l">Upload Excel</span></button>
         <button class="btn primary" id="btnAdd" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
       </div>
@@ -167,11 +169,34 @@
   </form>
 </dialog>
 
+<!-- Import dialog (admin) -->
+<dialog id="dlgImport" aria-labelledby="impTitle">
+  <div class="dlg">
+    <div class="dlg-head"><h2 id="impTitle">Upload Excel</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <div class="drop" id="drop">
+        <strong>Drop an .xlsx file here</strong>
+        <span class="help">Each sheet is read as one brand. The columns <span class="mono">Description</span>, <span class="mono">Part No</span>, <span class="mono">Qty</span> and <span class="mono">Remarks</span> are recognised automatically; you can check and change the brand and machine for each sheet before importing.</span>
+        <label class="btn filebtn">Choose file<input type="file" id="file" accept=".xlsx,.xls,.xlsm,.csv" hidden></label>
+      </div>
+      <div id="impPreview" class="preview" hidden></div>
+    </div>
+    <div class="dlg-foot">
+      <span class="help" id="impStatus"></span>
+      <div class="r">
+        <button class="btn" type="button" data-close>Cancel</button>
+        <button class="btn primary" type="button" id="btnDoImport" disabled>Import</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
 <datalist id="brandList"></datalist><datalist id="modelList"></datalist><datalist id="locList"></datalist>
 <datalist id="unitList"><option value="pcs"><option value="unit"><option value="set"><option value="box"><option value="roll"><option value="m"><option value="L"></datalist>
 <datalist id="condList"><option value="New"><option value="Used"><option value="Refurbished"><option value="Demo unit"><option value="Faulty"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="stock.js?v=20261111n"></script>
+<script src="import.js?v=20261111p"></script>
+<script src="stock.js?v=20261111p"></script>
 </body>
 </html>
