@@ -7,12 +7,12 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="styles.css?v=20261111g">
+<link rel="stylesheet" href="styles.css?v=20261111i">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="js/config.js?v=20261111f"></script>
-<script src="js/parser.js?v=20261111"></script>
+<script src="js/parser.js?v=20261111i"></script>
 </head>
 <body>
 
@@ -222,6 +222,13 @@
         <label>PC model<input id="e_pcModel"></label>
         <label>Memory<input id="e_memory" placeholder="16384 MB"></label>
         <label>VGA<input id="e_vga"></label>
+        <div class="wide disks">
+          <span class="lbl">Hard disks</span>
+          <input type="hidden" id="e_disks">
+          <div id="diskRows"></div>
+          <button class="linkbtn" type="button" id="btnDisk">+ Add another disk</button>
+          <span class="help" id="diskHelp" hidden>Run the latest supabase/brand.sql in Supabase to switch this field on.</span>
+        </div>
       </fieldset>
       <fieldset><legend>Notes</legend>
         <label class="wide">Notes<textarea id="e_notes" rows="2" placeholder="e.g. Need new mirror"></textarea></label>
@@ -273,9 +280,9 @@
   </div>
 </dialog>
 
-<datalist id="custList"></datalist><datalist id="brandList"></datalist><datalist id="kindList"></datalist><datalist id="modelList"></datalist><datalist id="osList"></datalist>
+<datalist id="custList"></datalist><datalist id="brandList"></datalist><datalist id="kindList"></datalist><datalist id="modelList"></datalist><datalist id="osList"></datalist><datalist id="diskList"><option value="SSD"><option value="NVMe SSD"><option value="HDD"><option value="SSD + HDD"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="js/app.js?v=20261111g"></script>
+<script src="js/app.js?v=20261111i"></script>
 </body>
 </html>

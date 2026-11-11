@@ -64,6 +64,7 @@ create table if not exists public.machines (
   pc_model    text not null default '',
   memory      text not null default '',
   vga         text not null default '',
+  disks       text not null default '',        -- hard disks, e.g. "SSD 512 GB + HDD 1 TB"
   location    text not null default '',
   check_by    text not null default '',
   notes       text not null default '',
@@ -76,6 +77,7 @@ alter table public.machines alter column created_by set default auth.uid();
 
 -- Databases created before the Brand column existed get it here
 alter table public.machines add column if not exists brand text not null default '';
+alter table public.machines add column if not exists disks text not null default '';
 
 create index if not exists machines_customer_idx on public.machines (customer);
 create index if not exists machines_brand_idx on public.machines (brand);

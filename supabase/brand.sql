@@ -1,10 +1,13 @@
 -- =====================================================================
--- Tamura Machine List — add the Brand column
+-- Tamura Machine List — add the Brand column and the hard disk columns
 -- Run this once in Supabase: Dashboard → SQL Editor → New query → Run.
 -- Safe to run again; it changes nothing the second time.
 -- =====================================================================
 
 alter table public.machines add column if not exists brand text not null default '';
+
+-- PC specifications: hard disks, one or more, e.g. "SSD 512 GB + HDD 1 TB"
+alter table public.machines add column if not exists disks text not null default '';
 
 -- Every AOI, SPI and Review machine in the list today is a Koh Young
 update public.machines

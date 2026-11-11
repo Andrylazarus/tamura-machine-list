@@ -179,7 +179,11 @@ dialog::backdrop{background:rgba(10,15,24,.5)}
 fieldset{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 legend{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;padding:0}
 label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500}
-label.wide{grid-column:1/-1}
+label.wide,.wide{grid-column:1/-1}
+.disks{display:flex;flex-direction:column;gap:6px}
+.disks .lbl{font-size:12px;color:var(--muted);font-weight:500}
+#diskRows{display:flex;flex-direction:column;gap:8px}
+.diskrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:8px;align-items:center}
 .req::after{content:" *";color:var(--bad)}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--bad);font-weight:500}
 .drop{border:2px dashed var(--line);border-radius:var(--r);padding:28px 16px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;background:var(--surface-2)}

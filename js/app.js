@@ -18,6 +18,7 @@
     FIELDS.forEach(function (f) {
       var v = (m[f] || "").trim();
       if (f === "brand" && !state.hasBrand) return;
+      if (f === "disks" && !state.hasDisk) return;
       r[col(f)] = (f === "lastCal" || f === "nextCal") ? (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null) : v;
     });
     return r;
@@ -26,7 +27,7 @@
   // ---------- state ----------
   var state = { docs: new Map(), q: "", sort: "customer", dir: 1, group: "customer",
                 sel: { customer: new Set(), brand: new Set(), kind: new Set(), cal: new Set(), status: new Set() },
-                hidden: new Set(), shut: new Set(), shutFacet: {}, facetQ: {}, hasBrand: true, hasCreator: false, people: {},
+                hidden: new Set(), shut: new Set(), shutFacet: {}, facetQ: {}, hasBrand: true, hasDisk: true, hasCreator: false, people: {},
                 role: null, user: null, ready: false, channel: null };
   var TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
   function isAdmin() { return state.role === "admin"; }
@@ -149,14 +150,15 @@
     // Databases set up before brands existed have no "brand" column yet (see supabase/brand.sql)
     var probe = Promise.all([
       sb.from("machines").select("brand").limit(1).then(function (res) { state.hasBrand = !res.error; }),
+      sb.from("machines").select("disks").limit(1).then(function (res) { state.hasDisk = !res.error; }),
       sb.from("machines").select("created_by").limit(1).then(function (res) { state.hasCreator = !res.error; $("btnAdd").hidden = !canAdd(); }),
       sb.rpc("people").then(function (res) { var p = {}; (res.data || []).forEach(function (u) { p[u.id] = u.name; }); if (!res.error) state.people = p; })
     ]);
     return probe.then(function () { return next(0); }).then(function (rows) {
       var m = new Map(); rows.forEach(function (r) { var o = fromRow(r); m.set(o._id, o); });
       state.docs = m; state.ready = true;
-      $("banner").hidden = state.hasBrand || !isAdmin();
-      $("banner").textContent = "Brands are being guessed from the model name and can't be saved yet. To switch the Brand field on, run supabase/brand.sql once in the Supabase SQL Editor, then reload this page.";
+      $("banner").hidden = (state.hasBrand && state.hasDisk) || !isAdmin();
+      $("banner").textContent = "The Brand and Hard disk fields can't be saved yet. To switch them on, run the latest supabase/brand.sql once in the Supabase SQL Editor, then reload this page.";
       render();
     }).catch(function (err) {
       state.ready = true; $("banner").hidden = false;
@@ -308,7 +310,7 @@
       '<td class="c-nextCal nw" data-l="Next calibration">' + (ci.next ? '<div>' + esc(fmtDate(m.nextCal || iso(ci.next))) + (ci.est ? ' <span class="sub">(est.)</span>' : '') + '</div>' : '') +
         '<span class="pill ' + PILL[ci.status] + '">' + esc(ci.label) + '</span></td>' +
       '<td class="c-ip mono" data-l="IP address">' + esc(m.ip) + '</td>' +
-      '<td class="c-pc" data-l="PC specifications">' + esc(pc) + (pc2 ? '<div class="sub">' + esc(pc2) + '</div>' : '') + (m.notes ? '<div class="note">' + esc(m.notes) + '</div>' : '') + '</td>' +
+      '<td class="c-pc" data-l="PC specifications">' + esc(pc) + (pc2 ? '<div class="sub">' + esc(pc2) + '</div>' : '') + (m.disks ? '<div class="sub">' + esc(m.disks) + '</div>' : '') + (m.notes ? '<div class="note">' + esc(m.notes) + '</div>' : '') + '</td>' +
       '<td class="c-by nw" data-l="Added by">' + (who(m) ? esc(who(m)) : dash) + '</td>' +
       '</tr>';
   }
@@ -463,6 +465,7 @@
     $("editTitle").textContent = m ? ([m.brand, m.model || m.kind].filter(Boolean).join(" ") + " · " + (m.serial || ("line " + m.line))) : "Add machine";
     var preset = { customer: only("customer"), brand: only("brand"), kind: only("kind") };
     FIELDS.forEach(function (f) { var el = $("e_" + f); el.value = m ? (m[f] || "") : (preset[f] || ""); el.disabled = !canEdit; });
+    drawDisks(parseDisks($("e_disks").value), canEdit && state.hasDisk);
     if (!state.hasBrand) { $("e_brand").disabled = true; $("e_brand").title = "Run supabase/brand.sql in Supabase to switch this field on"; }
     var mfg = $("e_mfg");
     if (m && m.mfg && !/^\d{4}-\d{2}$/.test(m.mfg)) { mfg.type = "text"; mfg.value = m.mfg; } else { mfg.type = "month"; mfg.value = m ? (m.mfg || "") : ""; }
@@ -476,6 +479,33 @@
     if (!m && canEdit) setTimeout(function () { $(preset.customer ? "e_kind" : "e_customer").focus(); }, 30);
   }
   $("btnAdd").addEventListener("click", function () { openEdit(null); });
+
+  // Hard disks: any number of rows (type + size), kept in the hidden e_disks field as one text
+  function drawDisks(list, canEdit) {
+    if (!list.length) list = [{ type: "", size: "" }];
+    var off = canEdit ? "" : " disabled";
+    $("diskRows").innerHTML = list.map(function (d, i) {
+      return '<div class="diskrow"><input class="d-type" list="diskList" autocomplete="off" placeholder="Type: SSD, HDD, NVMe SSD" aria-label="Disk ' + (i + 1) + ' type" value="' + esc(d.type) + '"' + off + '>' +
+        '<input class="d-size" placeholder="Size: 512 GB" aria-label="Disk ' + (i + 1) + ' size" value="' + esc(d.size) + '"' + off + '>' +
+        (canEdit && list.length > 1 ? '<button class="x" type="button" data-rm="' + i + '" aria-label="Remove disk ' + (i + 1) + '">×</button>' : '') + '</div>';
+    }).join("");
+    $("btnDisk").hidden = !canEdit;
+    $("diskHelp").hidden = state.hasDisk;
+  }
+  function readDisks() {
+    return Array.from($("diskRows").querySelectorAll(".diskrow")).map(function (r) {
+      return { type: r.querySelector(".d-type").value, size: r.querySelector(".d-size").value };
+    });
+  }
+  $("diskRows").addEventListener("input", function () { $("e_disks").value = formatDisks(readDisks()); });
+  $("diskRows").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-rm]"); if (!b) return;
+    var list = readDisks(); list.splice(+b.dataset.rm, 1); drawDisks(list, true); $("e_disks").value = formatDisks(list);
+  });
+  $("btnDisk").addEventListener("click", function () {
+    var list = readDisks(); list.push({ type: "", size: "" }); drawDisks(list, true);
+    var ins = $("diskRows").querySelectorAll(".d-type"); ins[ins.length - 1].focus();
+  });
   $("btnApprove").addEventListener("click", function () {
     if (!editing || !isAdmin()) return;
     var b = this; b.disabled = true;
@@ -642,7 +672,7 @@
     var ex = {}; FIELDS.forEach(function (f) { ex[f] = ""; });
     Object.assign(ex, { customer: "New Customer", brand: "Koh Young", kind: "SPI", model: "KY8030 Nova", line: "1", serial: "SV-SL-00000", mfg: "2026-01", version: "5.2.3.0",
       lastCal: "2026-01-15", nextCal: "2027-01-15", ip: "192.168.0.10", os: "Windows 10 Enterprise LTSC 64-bit", pcModel: "Dell OptiPlex XE4",
-      memory: "32768 MB", vga: "NVIDIA T400", notes: "Example row, replace or delete" });
+      memory: "32768 MB", vga: "NVIDIA T400", disks: "SSD 512 GB + HDD 1 TB", notes: "Example row, replace or delete" });
     XLSX.writeFile(buildWorkbook({ "New Customer": [ex] }), "Machine_List_Template.xlsx");
   });
 

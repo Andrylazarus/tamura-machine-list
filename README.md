@@ -72,7 +72,7 @@ To remove someone's access, set them back to `pending`, or delete the user in Su
 
 ## Excel import rules
 - Each sheet is one customer, named after the sheet. You can rename the customer in the preview before importing.
-- Columns are recognised by their header names: *Brand / Maker*, *Kind / Machine*, *Model / Type*, *Line*, *Serial Number*, *Manufactured Year*, *Current Version*, *Last calibration*, *Next Calibration*, *IP Address*, *OS*, *PC Model*, *Memory*, *VGA*, *Customer*, *Location*, *Check By*, *Notes*.
+- Columns are recognised by their header names: *Brand / Maker*, *Kind / Machine*, *Model / Type*, *Line*, *Serial Number*, *Manufactured Year*, *Current Version*, *Last calibration*, *Next Calibration*, *IP Address*, *OS*, *PC Model*, *Memory*, *VGA*, *Hard Disk* (or *Disk Type* / *Disk Size*, one or more), *Customer*, *Location*, *Check By*, *Notes*.
 - Two-row headers, like a merged "PC Specifications" header, are supported.
 - Machines are matched by **customer + serial number**. Re-importing updates them instead of creating duplicates.
 - **Replace these customers** mode also deletes machines that are missing from the file.

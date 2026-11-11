@@ -1,7 +1,7 @@
 // Excel → machine records. Shared by the import screen.
 // Each sheet = one customer; headers are matched by name (two-row headers supported).
-var FIELDS = ["customer","brand","kind","model","line","serial","mfg","version","lastCal","nextCal","ip","os","pcModel","memory","vga","location","checkBy","notes"];
-var LABELS = {customer:"Customer",brand:"Brand",kind:"Kind",model:"Model",line:"Line",serial:"Serial Number",mfg:"Manufactured Year",version:"Current Version",lastCal:"Last Calibration",nextCal:"Next Calibration",ip:"IP Address",os:"OS",pcModel:"PC Model",memory:"Memory",vga:"VGA",location:"Location",checkBy:"Check By",notes:"Notes"};
+var FIELDS = ["customer","brand","kind","model","line","serial","mfg","version","lastCal","nextCal","ip","os","pcModel","memory","vga","disks","location","checkBy","notes"];
+var LABELS = {customer:"Customer",brand:"Brand",kind:"Kind",model:"Model",line:"Line",serial:"Serial Number",mfg:"Manufactured Year",version:"Current Version",lastCal:"Last Calibration",nextCal:"Next Calibration",ip:"IP Address",os:"OS",pcModel:"PC Model",memory:"Memory",vga:"VGA",disks:"Hard Disk",location:"Location",checkBy:"Check By",notes:"Notes"};
 
 function normHeader(h){ return String(h==null?"":h).toLowerCase().replace(/[^a-z0-9]/g,""); }
 function headerField(h){
@@ -22,6 +22,8 @@ function headerField(h){
   if(n==="pcmodel"||n==="pc") return "pcModel";
   if(n==="memory"||n==="ram") return "memory";
   if(n==="vga"||n==="gpu"||n==="graphics") return "vga";
+  // "Hard Disk", "Disk Type", "Disk Size", "HDD 2", "SSD"… all feed the one hard disk field
+  if(/^(hard?disks?|hdd|ssd|storage|disks?|drives?)\d*(type|tipe|jenis|size|capacity|kapasitas|ukuran)?\d*$/.test(n)) return "disks";
   if(n==="customer") return "customer";
   if(n==="location"||n==="site") return "location";
   if(n==="checkby"||n==="checkedby") return "checkBy";
@@ -34,6 +36,17 @@ function inferBrand(model){
   if(/koh\s*young|zenith|meister|neptune|aspire|\bky\s*-?\s*\d/i.test(s)) return "Koh Young";
   if(/tamura/i.test(s)) return "Tamura";
   return "";
+}
+// Hard disks are kept as one text, e.g. "SSD 512 GB + HDD 1 TB"
+function parseDisks(s){
+  return String(s||"").split(/\s*(?:\+|;|\n|\/|,(?!\d))\s*/).map(function(p){
+    p=p.trim(); if(!p) return null;
+    var m=p.match(/^(.*?)[\s:]*(\d[\d.,]*\s*(?:TB|GB|MB|T|G))$/i);
+    return m ? {type:m[1].trim(), size:m[2].replace(/\s+/g," ").trim()} : {type:p, size:""};
+  }).filter(Boolean);
+}
+function formatDisks(list){
+  return list.map(function(d){ return [(d.type||"").trim(), (d.size||"").trim()].filter(Boolean).join(" "); }).filter(Boolean).join(" + ");
 }
 function pad(n){ return (n<10?"0":"")+n; }
 function toDate(v){
@@ -82,7 +95,7 @@ function parseSheet(sheetName, rows){
     if(hasSerial && nMapped>=3){
       map=cand.slice();
       var nxt=rows[r+1]||[], subMapped=0;
-      for(var c=0;c<nxt.length;c++){ var f=headerField(nxt[c]); if(f && ["os","pcModel","memory","vga"].indexOf(f)>=0){ map[c]=f; subMapped++; } }
+      for(var c=0;c<nxt.length;c++){ var f=headerField(nxt[c]); if(f && ["os","pcModel","memory","vga","disks"].indexOf(f)>=0){ map[c]=f; subMapped++; } }
       if(subMapped) r++;
       inBlock=true; continue;
     }
@@ -97,6 +110,7 @@ function parseSheet(sheetName, rows){
       var f2=map[c2]; if(!f2) continue; var v=row[c2];
       if(f2==="lastCal"||f2==="nextCal"){ var d=toDate(v); if(d&&d.date) m[f2]=d.date; else if(d&&d.text) notes.push(LABELS[f2]+": "+d.text); }
       else if(f2==="mfg") m.mfg=toMonth(v);
+      else if(f2==="disks"){ var dv=clean(v); if(dv) m.disks = !m.disks ? dv : m.disks + (/\d\s*(tb|gb|mb)$/i.test(m.disks) && !/^\d/.test(dv) ? " + " : " ") + dv; }
       else { var cv=clean(v); if(cv) m[f2]= m[f2] ? m[f2]+" "+cv : cv; }
     }
     if(notes.length) m.notes = m.notes ? m.notes+" · "+notes.join(" · ") : notes.join(" · ");
