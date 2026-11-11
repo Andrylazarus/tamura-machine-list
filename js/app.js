@@ -26,7 +26,7 @@
   // ---------- state ----------
   var state = { docs: new Map(), q: "", sort: "customer", dir: 1, group: "customer",
                 sel: { customer: new Set(), brand: new Set(), kind: new Set(), cal: new Set() },
-                hidden: new Set(), shut: new Set(), shutFacet: {}, facetQ: {}, hasBrand: true, hasCreator: false,
+                hidden: new Set(), shut: new Set(), shutFacet: {}, facetQ: {}, hasBrand: true, hasCreator: false, people: {},
                 role: null, user: null, ready: false, channel: null };
   var TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
   function isAdmin() { return state.role === "admin"; }
@@ -149,7 +149,8 @@
     // Databases set up before brands existed have no "brand" column yet (see supabase/brand.sql)
     var probe = Promise.all([
       sb.from("machines").select("brand").limit(1).then(function (res) { state.hasBrand = !res.error; }),
-      sb.from("machines").select("created_by").limit(1).then(function (res) { state.hasCreator = !res.error; $("btnAdd").hidden = !canAdd(); })
+      sb.from("machines").select("created_by").limit(1).then(function (res) { state.hasCreator = !res.error; $("btnAdd").hidden = !canAdd(); }),
+      sb.rpc("people").then(function (res) { var p = {}; (res.data || []).forEach(function (u) { p[u.id] = u.name; }); if (!res.error) state.people = p; })
     ]);
     return probe.then(function () { return next(0); }).then(function (rows) {
       var m = new Map(); rows.forEach(function (r) { var o = fromRow(r); m.set(o._id, o); });
@@ -187,6 +188,7 @@
     var label = days < 0 ? (-days) + " d overdue" : days === 0 ? "Due today" : days <= 30 ? "In " + days + " d" : "OK";
     return { status: st, label: label, next: next, est: est };
   }
+  function who(m) { if (!m.createdBy) return ""; if (state.user && m.createdBy === state.user.id && !state.people[m.createdBy]) return "You"; return state.people[m.createdBy] || "Former user"; }
   function natural(a, b) { return String(a || "").localeCompare(String(b || ""), undefined, { numeric: true, sensitivity: "base" }); }
   function all() { return Array.from(state.docs.values()); }
   function toast(t) { var el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(function () { el.hidden = true; }, 3500); }
@@ -202,8 +204,8 @@
   var CAL_ORDER = ["overdue", "due", "ok", "none"];
   var CAL_LABEL = { overdue: "Overdue", due: "Due in 30 days", ok: "Up to date", none: "No date" };
   var COLS = [["brand", "Brand"], ["line", "Line"], ["serial", "Serial number"], ["mfg", "Manufactured"], ["version", "Version"],
-              ["lastCal", "Last calibration"], ["nextCal", "Next calibration"], ["ip", "IP address"], ["pc", "PC specifications"]];
-  var NCOLS = 11;
+              ["lastCal", "Last calibration"], ["nextCal", "Next calibration"], ["ip", "IP address"], ["pc", "PC specifications"], ["by", "Added by"]];
+  var NCOLS = 12;
   // Suggestions offered when typing a brand or kind; anything else can be typed too.
   var BRAND_HINTS = ["Koh Young", "Tamura"];
   var KIND_HINTS = ["SPI", "AOI", "Review station", "Reflow oven", "Wave soldering", "Selective soldering", "Screen printer", "Mounter", "X-ray"];
@@ -303,6 +305,7 @@
         '<span class="pill ' + PILL[ci.status] + '">' + esc(ci.label) + '</span></td>' +
       '<td class="c-ip mono">' + esc(m.ip) + '</td>' +
       '<td class="c-pc">' + esc(pc) + (pc2 ? '<div class="sub">' + esc(pc2) + '</div>' : '') + (m.notes ? '<div class="note">' + esc(m.notes) + '</div>' : '') + '</td>' +
+      '<td class="c-by nw">' + (who(m) ? esc(who(m)) : dash) + '</td>' +
       '</tr>';
   }
   var PILL = { overdue: "bad", due: "warn", ok: "ok", none: "none" };
@@ -347,6 +350,7 @@
       var r;
       if (key === "nextCal") { var ia = calInfo(a), ib = calInfo(b); r = (ia.next ? ia.next.getTime() : 9e15) - (ib.next ? ib.next.getTime() : 9e15); }
       else if (key === "customer" && g === "customer") r = natural(a.location, b.location);
+      else if (key === "createdBy") r = natural(who(a), who(b));
       else r = natural(a[key], b[key]);
       if (r === 0) return natural(a.customer, b.customer) || natural(a.kind, b.kind) || natural(a.line, b.line);
       return r * dir;
@@ -440,7 +444,7 @@
     if (!state.hasBrand) { $("e_brand").disabled = true; $("e_brand").title = "Run supabase/brand.sql in Supabase to switch this field on"; }
     var mfg = $("e_mfg");
     if (m && m.mfg && !/^\d{4}-\d{2}$/.test(m.mfg)) { mfg.type = "text"; mfg.value = m.mfg; } else { mfg.type = "month"; mfg.value = m ? (m.mfg || "") : ""; }
-    $("editMeta").textContent = (m && m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") + ". " : "") +
+    $("editMeta").textContent = (m && who(m) ? "Added by " + who(m) + ". " : "") + (m && m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") + ". " : "") +
       (m && !isAdmin() ? (canEdit ? "You added this machine, so you can edit it." : "View only: you can edit the machines you added yourself.") : "");
     $("btnSave").hidden = !canEdit;
     $("delArea").innerHTML = (m && isAdmin()) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
@@ -613,18 +617,31 @@
   $("btnUsers").addEventListener("click", function () { $("dlgUsers").showModal(); loadUsers(); });
   function loadUsers() {
     $("usersStatus").textContent = "Loading…";
-    sb.from("profiles").select("id,email,role,created_at").order("created_at").then(function (res) {
+    sb.from("profiles").select("id,email,name,role,created_at").order("created_at").then(function (res) {
+      // databases without the name column yet (supabase/permissions.sql not run)
+      return res.error ? sb.from("profiles").select("id,email,role,created_at").order("created_at") : res;
+    }).then(function (res) {
       if (res.error) { $("usersStatus").textContent = errText(res.error); return; }
+      var named = res.data.length && "name" in res.data[0];
       $("usersStatus").textContent = res.data.length + " users";
       $("usersRows").innerHTML = res.data.map(function (u) {
         var self = state.user && u.id === state.user.id;
-        return '<tr><td>' + esc(u.email) + (self ? ' <span class="sub">(you)</span>' : '') + '</td><td><select data-uid="' + esc(u.id) + '"' + (self ? ' disabled title="You can\'t change your own role"' : '') + ' aria-label="Role for ' + esc(u.email) + '">' +
+        return '<tr><td>' + esc(u.email) + (self ? ' <span class="sub">(you)</span>' : '') + '</td><td>' +
+          (named ? '<input data-name="' + esc(u.id) + '" value="' + esc(u.name || "") + '" placeholder="' + esc(String(u.email || "").split("@")[0]) + '" aria-label="Display name for ' + esc(u.email) + '">' : '<span class="sub">—</span>') + '</td><td><select data-uid="' + esc(u.id) + '"' + (self ? ' disabled title="You can\'t change your own role"' : '') + ' aria-label="Role for ' + esc(u.email) + '">' +
           ["pending", "viewer", "admin"].map(function (r) { return '<option' + (r === u.role ? ' selected' : '') + '>' + r + '</option>'; }).join("") +
           '</select></td><td class="sub">' + esc(new Date(u.created_at).toLocaleDateString("en-GB")) + '</td></tr>';
       }).join("");
     });
   }
   $("usersRows").addEventListener("change", function (e) {
+    var n = e.target.closest("input[data-name]");
+    if (n) {
+      sb.from("profiles").update({ name: n.value.trim() }).eq("id", n.dataset.name).select().then(function (res) {
+        if (res.error || !res.data || !res.data.length) { toast("Could not save the name: " + (res.error ? errText(res.error) : "not allowed")); return; }
+        state.people[n.dataset.name] = n.value.trim() || n.placeholder; render(); toast("Name saved");
+      });
+      return;
+    }
     var s = e.target.closest("select[data-uid]"); if (!s) return;
     s.disabled = true;
     sb.from("profiles").update({ role: s.value }).eq("id", s.dataset.uid).select().then(function (res) {

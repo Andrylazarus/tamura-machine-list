@@ -134,7 +134,7 @@ label.inline select{width:auto}
 
 /* ---------- Table ---------- */
 .tablebox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow-x:auto;box-shadow:var(--shadow-1)}
-table{border-collapse:collapse;width:100%;min-width:1180px}
+table{border-collapse:collapse;width:100%;min-width:1280px}
 th,td{padding:9px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line-2)}
 th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--surface-2);border-bottom-color:var(--line);white-space:nowrap;cursor:pointer;user-select:none}
 th:hover{color:var(--fg)}
@@ -157,7 +157,7 @@ tr.grp.shut .car{transform:rotate(-45deg);margin-bottom:0}
 .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.none{background:var(--none-soft);color:var(--muted)}
 .c-pc{min-width:230px;max-width:300px}
 td.c-brand{white-space:nowrap}
-#grid.h-brand .c-brand,#grid.h-line .c-line,#grid.h-serial .c-serial,#grid.h-mfg .c-mfg,#grid.h-version .c-version,#grid.h-lastCal .c-lastCal,#grid.h-nextCal .c-nextCal,#grid.h-ip .c-ip,#grid.h-pc .c-pc,#grid.h-customer .c-customer{display:none}
+#grid.h-brand .c-brand,#grid.h-line .c-line,#grid.h-serial .c-serial,#grid.h-mfg .c-mfg,#grid.h-version .c-version,#grid.h-lastCal .c-lastCal,#grid.h-nextCal .c-nextCal,#grid.h-ip .c-ip,#grid.h-pc .c-pc,#grid.h-by .c-by,#grid.h-customer .c-customer{display:none}
 .empty{padding:56px 20px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:8px;align-items:center}
 .empty strong{color:var(--fg);font-size:17px}
 
@@ -192,6 +192,7 @@ label.wide{grid-column:1/-1}
 .progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:500;box-shadow:var(--shadow);z-index:50;max-width:calc(100vw - 32px)}
 .users td select{width:auto}
+.users td input{padding:5px 8px;min-width:130px}
 .linkbtn{background:none;border:0;color:var(--accent);padding:0;text-decoration:underline;text-underline-offset:2px;font-size:13px;align-self:flex-start}
 
 /* ---------- Login screens ---------- */

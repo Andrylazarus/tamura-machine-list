@@ -62,4 +62,40 @@ begin
 end;
 $$;
 
+-- 4. Show who added each machine. Each account gets a display name (the admin can
+--    change it under Users); without one, the part of the email before "@" is shown.
+alter table public.profiles add column if not exists name text not null default '';
+
+-- Names of approved accounts, for the "Added by" column. Emails are not exposed.
+create or replace function public.people()
+returns table (id uuid, name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.id, coalesce(nullif(trim(p.name), ''), split_part(coalesce(p.email, ''), '@', 1))
+  from public.profiles p
+  where public.app_role() in ('admin', 'viewer');
+$$;
+revoke all on function public.people() from public, anon;
+grant execute on function public.people() to authenticated;
+
+-- 5. Everything in the list so far was entered by the owner (Andry)
+do $$
+declare
+  owner_id constant text := 'f40b7cb7749f58d5e767e5e32d98866c3fed1400f1792045447e9fdf16d09379';
+  owner_uid uuid;
+begin
+  select id into owner_uid from public.profiles
+   where encode(sha256(convert_to(lower(trim(email)), 'UTF8')), 'hex') = owner_id
+   limit 1;
+  update public.profiles set name = 'Andry' where id = owner_uid and name = '';
+  -- touch_machine() would stamp "last changed" on every row, so switch it off for this one update
+  alter table public.machines disable trigger machines_touch;
+  update public.machines set created_by = owner_uid where created_by is null;
+  alter table public.machines enable trigger machines_touch;
+end;
+$$;
+
 notify pgrst, 'reload schema';
