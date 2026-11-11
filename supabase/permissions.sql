@@ -6,7 +6,9 @@
 --   admin  (the owner account only): sees and edits everything, deletes,
 --          imports Excel, manages users
 --   viewer (every other approved account): sees everything, adds machines,
---          and edits only the machines that account added itself
+--          and edits only the machines that account added itself.
+--          A machine added by a viewer waits for the admin's approval;
+--          until then only that viewer and the admin can see it.
 -- =====================================================================
 
 -- 1. Remember who added each machine. Machines already in the list keep an
@@ -97,5 +99,48 @@ begin
   alter table public.machines enable trigger machines_touch;
 end;
 $$;
+
+-- 6. Machines added by a viewer wait for the admin's approval
+alter table public.machines add column if not exists status text not null default 'approved';
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'machines_status_check') then
+    alter table public.machines add constraint machines_status_check check (status in ('approved', 'pending'));
+  end if;
+end;
+$$;
+
+-- Only the admin decides the status: a viewer's new machine is always "pending",
+-- and a viewer's edit can never change the status.
+create or replace function public.guard_machine_status()
+returns trigger
+language plpgsql
+as $$
+begin
+  if auth.uid() is not null and public.app_role() is distinct from 'admin' then
+    if tg_op = 'INSERT' then
+      new.status := 'pending';
+    else
+      new.status := old.status;
+      new.created_by := old.created_by;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists machines_guard_status on public.machines;
+create trigger machines_guard_status
+  before insert or update on public.machines
+  for each row execute function public.guard_machine_status();
+
+-- Viewers see approved machines plus their own waiting ones; the admin sees everything
+drop policy if exists "machines: approved users read" on public.machines;
+create policy "machines: approved users read" on public.machines
+  for select to authenticated
+  using (
+    public.app_role() = 'admin'
+    or (public.app_role() = 'viewer' and (status = 'approved' or created_by = auth.uid()))
+  );
 
 notify pgrst, 'reload schema';

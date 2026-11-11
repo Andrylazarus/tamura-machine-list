@@ -73,6 +73,9 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(22px,2.6vw,28px)
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 .btn.primary:hover{filter:brightness(1.08)}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.banner.info{border-color:var(--accent);background:var(--accent-soft);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+tbody tr.row.pending{background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface))}
 .btn.danger.solid{background:var(--bad);color:var(--surface)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn svg{width:16px;height:16px;flex:none}
@@ -154,6 +157,7 @@ tr.grp.shut .car{transform:rotate(-45deg);margin-bottom:0}
 .cust{font-weight:600}
 .note{font-size:12px;color:var(--copper)}
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.wait{background:var(--accent-soft);color:var(--accent);margin-top:4px}
 .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.none{background:var(--none-soft);color:var(--muted)}
 .c-pc{min-width:230px;max-width:300px}
 td.c-brand{white-space:nowrap}

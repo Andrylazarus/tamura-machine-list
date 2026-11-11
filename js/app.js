@@ -8,7 +8,7 @@
   var COL = { lastCal: "last_cal", nextCal: "next_cal", pcModel: "pc_model", checkBy: "check_by" };
   function col(f) { return COL[f] || f; }
   function fromRow(r) {
-    var m = { _id: r.id, key: r.key, updatedAt: r.updated_at, createdBy: r.created_by || "" };
+    var m = { _id: r.id, key: r.key, updatedAt: r.updated_at, createdBy: r.created_by || "", status: r.status === "pending" ? "pending" : "approved" };
     FIELDS.forEach(function (f) { var v = r[col(f)]; m[f] = v == null ? "" : String(v); });
     if (!m.brand) m.brand = inferBrand(m.model);
     return m;
@@ -25,7 +25,7 @@
 
   // ---------- state ----------
   var state = { docs: new Map(), q: "", sort: "customer", dir: 1, group: "customer",
-                sel: { customer: new Set(), brand: new Set(), kind: new Set(), cal: new Set() },
+                sel: { customer: new Set(), brand: new Set(), kind: new Set(), cal: new Set(), status: new Set() },
                 hidden: new Set(), shut: new Set(), shutFacet: {}, facetQ: {}, hasBrand: true, hasCreator: false, people: {},
                 role: null, user: null, ready: false, channel: null };
   var TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
@@ -200,7 +200,8 @@
   }
 
   // ---------- filters ----------
-  var FACETS = [{ k: "customer", label: "Customer" }, { k: "brand", label: "Brand" }, { k: "kind", label: "Kind" }, { k: "cal", label: "Calibration" }];
+  var FACETS = [{ k: "customer", label: "Customer" }, { k: "brand", label: "Brand" }, { k: "kind", label: "Kind" }, { k: "cal", label: "Calibration" }, { k: "status", label: "Approval" }];
+  var STATUS_LABEL = { pending: "Waiting for approval", approved: "Approved" };
   var CAL_ORDER = ["overdue", "due", "ok", "none"];
   var CAL_LABEL = { overdue: "Overdue", due: "Due in 30 days", ok: "Up to date", none: "No date" };
   var COLS = [["brand", "Brand"], ["line", "Line"], ["serial", "Serial number"], ["mfg", "Manufactured"], ["version", "Version"],
@@ -212,11 +213,12 @@
 
   function fval(m, k) {
     if (k === "cal") return calInfo(m).status;
+    if (k === "status") return m.status;
     if (k === "kind") return (m.kind || "").trim().toUpperCase();
     return (m[k] || "").trim();
   }
   var kindName = {};
-  function flabel(k, v) { return k === "cal" ? CAL_LABEL[v] : k === "kind" ? (kindName[v] || v || "Not set") : (v || "Not set"); }
+  function flabel(k, v) { return k === "cal" ? CAL_LABEL[v] : k === "status" ? STATUS_LABEL[v] : k === "kind" ? (kindName[v] || v || "Not set") : (v || "Not set"); }
   function matches(m, skip) {
     for (var i = 0; i < FACETS.length; i++) {
       var k = FACETS[i].k, s = state.sel[k];
@@ -254,6 +256,7 @@
     FACETS.forEach(function (f) {
       var k = f.k, sel = state.sel[k], counts = {}, vals = {};
       list.forEach(function (m) { vals[fval(m, k)] = 1; });
+      if (k === "status" && !vals.pending) return;   // nothing is waiting: no need for this filter
       list.forEach(function (m) { if (matches(m, k)) { var v = fval(m, k); counts[v] = (counts[v] || 0) + 1; } });
       var keys = k === "cal" ? CAL_ORDER.filter(function (v) { return vals[v]; })
                              : Object.keys(vals).sort(function (a, b) { return (a === "") - (b === "") || natural(a, b); });
@@ -291,11 +294,12 @@
     var ci = calInfo(m);
     var pc = [m.os, m.pcModel].filter(Boolean).join(" · "), pc2 = [m.memory, m.vga].filter(Boolean).join(" · ");
     var dash = '<span class="muted">—</span>';
-    return '<tr class="row" data-id="' + esc(m._id) + '" tabindex="0">' +
+    return '<tr class="row' + (m.status === "pending" ? ' pending' : '') + '" data-id="' + esc(m._id) + '" tabindex="0">' +
       (state.group === "customer" ? '<td class="c-customer" data-l="Location">' + esc(m.location) + '</td>'
         : '<td class="c-customer"><div class="cust">' + esc(m.customer) + '</div>' + (m.location ? '<div class="sub">' + esc(m.location) + '</div>' : '') + '</td>') +
       '<td class="c-brand" data-l="Brand">' + (m.brand ? esc(m.brand) : dash) + '</td>' +
-      '<td class="c-kind"><span class="kind">' + esc(m.kind || "?") + '</span>' + (m.model ? '<div class="model">' + esc(m.model) + '</div>' : '') + '</td>' +
+      '<td class="c-kind"><span class="kind">' + esc(m.kind || "?") + '</span>' + (m.model ? '<div class="model">' + esc(m.model) + '</div>' : '') +
+        (m.status === "pending" ? '<div><span class="pill wait">Waiting for approval</span></div>' : '') + '</td>' +
       '<td class="c-line mono" data-l="Line">' + esc(m.line) + '</td>' +
       '<td class="c-serial mono" data-l="Serial number">' + (m.serial ? esc(m.serial) : dash) + '</td>' +
       '<td class="c-mfg nw" data-l="Manufactured">' + esc(fmtMonth(m.mfg)) + '</td>' +
@@ -318,6 +322,17 @@
     });
 
     kindName = {}; list.forEach(function (m) { var k = fval(m, "kind"); if (k && !kindName[k]) kindName[k] = m.kind.trim(); });
+
+    var waiting = list.filter(function (m) { return m.status === "pending"; }).length;
+    if (!waiting) state.sel.status.clear();
+    var pb = $("pendingBar");
+    pb.hidden = !waiting;
+    if (waiting) {
+      $("pendingText").textContent = isAdmin()
+        ? waiting + (waiting === 1 ? " machine added by a viewer is" : " machines added by viewers are") + " waiting for your approval."
+        : waiting + (waiting === 1 ? " machine you added is" : " machines you added are") + " waiting for the admin's approval. Other accounts can't see " + (waiting === 1 ? "it" : "them") + " yet.";
+      $("btnReview").textContent = only("status") === "pending" ? "Show all machines" : (isAdmin() ? "Review" : "Show");
+    }
 
     var scope = list.filter(function (m) { return matches(m, "cal"); });
     var c = { overdue: 0, due: 0, ok: 0, none: 0 };
@@ -412,6 +427,9 @@
       render();
     });
   });
+  $("btnReview").addEventListener("click", function () {
+    var was = only("status") === "pending"; state.sel.status.clear(); if (!was) state.sel.status.add("pending"); render();
+  });
   $("fGroup").addEventListener("change", function () { state.group = this.value; savePrefs(); render(); });
   $("fSort").addEventListener("change", function () { var p = this.value.split(":"); state.sort = p[0]; state.dir = p[1] === "d" ? -1 : 1; render(); });
   $("colList").addEventListener("change", function (e) {
@@ -451,11 +469,21 @@
     $("editMeta").textContent = (m && who(m) ? "Added by " + who(m) + ". " : "") + (m && m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") + ". " : "") +
       (m && !isAdmin() ? (canEdit ? "You added this machine, so you can edit it." : "View only: you can edit the machines you added yourself.") : "");
     $("btnSave").hidden = !canEdit;
-    $("delArea").innerHTML = (m && isAdmin()) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
+    $("btnApprove").hidden = !(m && isAdmin() && m.status === "pending");
+    if (m && m.status === "pending") $("editMeta").textContent = "Waiting for approval. " + $("editMeta").textContent;
+    $("delArea").innerHTML = (m && isAdmin()) ? '<button class="btn danger" type="button" id="btnDel">' + (m.status === "pending" ? "Reject and delete" : "Delete") + '</button>' : '';
     $("dlgEdit").showModal();
     if (!m && canEdit) setTimeout(function () { $(preset.customer ? "e_kind" : "e_customer").focus(); }, 30);
   }
   $("btnAdd").addEventListener("click", function () { openEdit(null); });
+  $("btnApprove").addEventListener("click", function () {
+    if (!editing || !isAdmin()) return;
+    var b = this; b.disabled = true;
+    sb.from("machines").update({ status: "approved" }).eq("id", editing._id).select().single().then(function (res) {
+      if (res.error) { toast("Could not approve: " + errText(res.error)); return; }
+      var o = fromRow(res.data); state.docs.set(o._id, o); render(); $("dlgEdit").close(); toast("Machine approved");
+    }).finally(function () { b.disabled = false; });
+  });
   $("delArea").addEventListener("click", function (e) {
     if (e.target.id === "btnDel") $("delArea").innerHTML = '<span class="confirm">Delete this machine? <button class="btn danger solid" type="button" id="btnDelYes">Delete</button><button class="btn" type="button" id="btnDelNo">Keep</button></span>';
     if (e.target.id === "btnDelNo") $("delArea").innerHTML = '<button class="btn danger" type="button" id="btnDel">Delete</button>';
@@ -479,7 +507,8 @@
     q.then(function (res) {
       if (res.error) { toast("Could not save: " + errText(res.error)); return; }
       var o = fromRow(res.data); state.docs.set(o._id, o); render();
-      $("dlgEdit").close(); toast(editing ? "Machine updated" : "Machine added");
+      $("dlgEdit").close();
+      toast(editing ? "Machine updated" : o.status === "pending" ? "Machine added. It is waiting for the admin's approval." : "Machine added");
     }).finally(function () { btn.disabled = false; });
   });
 
