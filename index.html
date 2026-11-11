@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="styles.css?v=20261111d">
+<link rel="stylesheet" href="styles.css?v=20261111e">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -144,6 +144,19 @@
               <option value="cal">Calibration status</option>
               <option value="">No grouping</option>
             </select></label>
+          <label class="inline only-m">Sort by
+            <select id="fSort" aria-label="Sort machines by">
+              <option value="customer:a">Customer / location</option>
+              <option value="nextCal:a">Next calibration, soonest first</option>
+              <option value="nextCal:d">Next calibration, latest first</option>
+              <option value="lastCal:d">Last calibration, newest first</option>
+              <option value="brand:a">Brand</option>
+              <option value="kind:a">Kind</option>
+              <option value="line:a">Line</option>
+              <option value="serial:a">Serial number</option>
+              <option value="mfg:d">Manufactured, newest first</option>
+              <option value="createdBy:a">Added by</option>
+            </select></label>
           <details class="menu" id="colMenu">
             <summary class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4zM9 5v14M15 5v14"/></svg>Columns</summary>
             <div class="menu-pop" id="colList"></div>
@@ -261,6 +274,6 @@
 <datalist id="custList"></datalist><datalist id="brandList"></datalist><datalist id="kindList"></datalist><datalist id="modelList"></datalist><datalist id="osList"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="js/app.js?v=20261111d"></script>
+<script src="js/app.js?v=20261111e"></script>
 </body>
 </html>

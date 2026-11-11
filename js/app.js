@@ -292,20 +292,20 @@
     var pc = [m.os, m.pcModel].filter(Boolean).join(" · "), pc2 = [m.memory, m.vga].filter(Boolean).join(" · ");
     var dash = '<span class="muted">—</span>';
     return '<tr class="row" data-id="' + esc(m._id) + '" tabindex="0">' +
-      (state.group === "customer" ? '<td class="c-customer">' + esc(m.location) + '</td>'
+      (state.group === "customer" ? '<td class="c-customer" data-l="Location">' + esc(m.location) + '</td>'
         : '<td class="c-customer"><div class="cust">' + esc(m.customer) + '</div>' + (m.location ? '<div class="sub">' + esc(m.location) + '</div>' : '') + '</td>') +
-      '<td class="c-brand">' + (m.brand ? esc(m.brand) : dash) + '</td>' +
+      '<td class="c-brand" data-l="Brand">' + (m.brand ? esc(m.brand) : dash) + '</td>' +
       '<td class="c-kind"><span class="kind">' + esc(m.kind || "?") + '</span>' + (m.model ? '<div class="model">' + esc(m.model) + '</div>' : '') + '</td>' +
-      '<td class="c-line mono">' + esc(m.line) + '</td>' +
-      '<td class="c-serial mono">' + (m.serial ? esc(m.serial) : dash) + '</td>' +
-      '<td class="c-mfg nw">' + esc(fmtMonth(m.mfg)) + '</td>' +
-      '<td class="c-version mono">' + esc(m.version) + '</td>' +
-      '<td class="c-lastCal nw">' + esc(fmtDate(m.lastCal)) + '</td>' +
-      '<td class="c-nextCal nw">' + (ci.next ? '<div>' + esc(fmtDate(m.nextCal || iso(ci.next))) + (ci.est ? ' <span class="sub">(est.)</span>' : '') + '</div>' : '') +
+      '<td class="c-line mono" data-l="Line">' + esc(m.line) + '</td>' +
+      '<td class="c-serial mono" data-l="Serial number">' + (m.serial ? esc(m.serial) : dash) + '</td>' +
+      '<td class="c-mfg nw" data-l="Manufactured">' + esc(fmtMonth(m.mfg)) + '</td>' +
+      '<td class="c-version mono" data-l="Version">' + esc(m.version) + '</td>' +
+      '<td class="c-lastCal nw" data-l="Last calibration">' + esc(fmtDate(m.lastCal)) + '</td>' +
+      '<td class="c-nextCal nw" data-l="Next calibration">' + (ci.next ? '<div>' + esc(fmtDate(m.nextCal || iso(ci.next))) + (ci.est ? ' <span class="sub">(est.)</span>' : '') + '</div>' : '') +
         '<span class="pill ' + PILL[ci.status] + '">' + esc(ci.label) + '</span></td>' +
-      '<td class="c-ip mono">' + esc(m.ip) + '</td>' +
-      '<td class="c-pc">' + esc(pc) + (pc2 ? '<div class="sub">' + esc(pc2) + '</div>' : '') + (m.notes ? '<div class="note">' + esc(m.notes) + '</div>' : '') + '</td>' +
-      '<td class="c-by nw">' + (who(m) ? esc(who(m)) : dash) + '</td>' +
+      '<td class="c-ip mono" data-l="IP address">' + esc(m.ip) + '</td>' +
+      '<td class="c-pc" data-l="PC specifications">' + esc(pc) + (pc2 ? '<div class="sub">' + esc(pc2) + '</div>' : '') + (m.notes ? '<div class="note">' + esc(m.notes) + '</div>' : '') + '</td>' +
+      '<td class="c-by nw" data-l="Added by">' + (who(m) ? esc(who(m)) : dash) + '</td>' +
       '</tr>';
   }
   var PILL = { overdue: "bad", due: "warn", ok: "ok", none: "none" };
@@ -355,6 +355,9 @@
       if (r === 0) return natural(a.customer, b.customer) || natural(a.kind, b.kind) || natural(a.line, b.line);
       return r * dir;
     });
+    var sv = key + ":" + (dir > 0 ? "a" : "d"), fs = $("fSort");
+    if (!fs.querySelector('option[value="' + sv + '"]')) sv = key + ":a";
+    fs.value = sv;
     document.querySelectorAll("th[data-sort]").forEach(function (h) {
       var base = h.dataset.sort === "customer" ? (g === "customer" ? "Location" : "Customer") : h.textContent.replace(/[ ▲▼]+$/, "");
       h.innerHTML = esc(base) + (h.dataset.sort === key ? ' <span class="arrow">' + (dir > 0 ? "▲" : "▼") + '</span>' : "");
@@ -410,6 +413,7 @@
     });
   });
   $("fGroup").addEventListener("change", function () { state.group = this.value; savePrefs(); render(); });
+  $("fSort").addEventListener("change", function () { var p = this.value.split(":"); state.sort = p[0]; state.dir = p[1] === "d" ? -1 : 1; render(); });
   $("colList").addEventListener("change", function (e) {
     var k = e.target.dataset.col; if (!k) return;
     if (e.target.checked) state.hidden.delete(k); else state.hidden.add(k);
