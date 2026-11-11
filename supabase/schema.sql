@@ -5,8 +5,8 @@
 
 -- ---------- Profiles: one row per login, holds the user's role ----------
 -- Roles:
---   admin   : can view, add, edit, delete, import, and manage user roles
---   viewer  : can view and export only
+--   admin   : can view, add, edit, delete, import, and manage user roles (the owner account)
+--   viewer  : can view, export, add machines and edit the machines they added
 --   pending : logged in but not approved yet — sees nothing
 create table if not exists public.profiles (
   id         uuid primary key references auth.users (id) on delete cascade,
@@ -68,8 +68,11 @@ create table if not exists public.machines (
   check_by    text not null default '',
   notes       text not null default '',
   updated_at  timestamptz not null default now(),
-  updated_by  uuid references auth.users (id) on delete set null default auth.uid()
+  updated_by  uuid references auth.users (id) on delete set null default auth.uid(),
+  created_by  uuid references auth.users (id) on delete set null default auth.uid()
 );
+alter table public.machines add column if not exists created_by uuid references auth.users (id) on delete set null;
+alter table public.machines alter column created_by set default auth.uid();
 
 -- Databases created before the Brand column existed get it here
 alter table public.machines add column if not exists brand text not null default '';
@@ -110,22 +113,25 @@ create policy "profiles: admin updates roles" on public.profiles
   using (public.app_role() = 'admin')
   with check (public.app_role() = 'admin');
 
--- Machines: approved users read; only admins write
+-- Machines: approved users read
 drop policy if exists "machines: approved users read" on public.machines;
 create policy "machines: approved users read" on public.machines
   for select to authenticated
   using (public.app_role() in ('admin', 'viewer'));
 
+-- Admin writes everything; viewers add machines and edit the ones they added
 drop policy if exists "machines: admin insert" on public.machines;
-create policy "machines: admin insert" on public.machines
+drop policy if exists "machines: approved insert" on public.machines;
+create policy "machines: approved insert" on public.machines
   for insert to authenticated
-  with check (public.app_role() = 'admin');
+  with check (public.app_role() = 'admin' or (public.app_role() = 'viewer' and created_by = auth.uid()));
 
 drop policy if exists "machines: admin update" on public.machines;
-create policy "machines: admin update" on public.machines
+drop policy if exists "machines: admin or creator update" on public.machines;
+create policy "machines: admin or creator update" on public.machines
   for update to authenticated
-  using (public.app_role() = 'admin')
-  with check (public.app_role() = 'admin');
+  using (public.app_role() = 'admin' or (public.app_role() = 'viewer' and created_by = auth.uid()))
+  with check (public.app_role() = 'admin' or (public.app_role() = 'viewer' and created_by = auth.uid()));
 
 drop policy if exists "machines: admin delete" on public.machines;
 create policy "machines: admin delete" on public.machines

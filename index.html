@@ -109,7 +109,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg><span class="l">Export Excel</span></button>
         <button class="btn" id="btnImport" type="button" data-admin>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 3h16"/></svg><span class="l">Upload Excel</span></button>
-        <button class="btn primary" id="btnAdd" type="button" data-admin>
+        <button class="btn primary" id="btnAdd" type="button" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add machine</button>
       </div>
     </div>
@@ -250,7 +250,7 @@
   <div class="dlg">
     <div class="dlg-head"><h2 id="usersTitle">Users</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
     <div class="dlg-body">
-      <p class="help">To add someone, invite them by email in Supabase (Authentication → Users → Invite user). They appear here as <strong>pending</strong>; give them a role to let them in.</p>
+      <p class="help">To add someone, invite them by email in Supabase (Authentication → Users → Invite user). They appear here as <strong>pending</strong>; give them the <strong>viewer</strong> role to let them in. Viewers see everything, can add machines and edit the ones they added; only the admin can edit everything.</p>
       <div class="tablebox users"><table style="min-width:420px"><thead><tr><th>Email</th><th>Role</th><th>Since</th></tr></thead><tbody id="usersRows"></tbody></table></div>
     </div>
     <div class="dlg-foot"><span class="help" id="usersStatus"></span><div class="r"><button class="btn" type="button" data-close>Close</button></div></div>
@@ -260,6 +260,6 @@
 <datalist id="custList"></datalist><datalist id="brandList"></datalist><datalist id="kindList"></datalist><datalist id="modelList"></datalist><datalist id="osList"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="js/app.js?v=20261111b"></script>
+<script src="js/app.js?v=20261111c"></script>
 </body>
 </html>

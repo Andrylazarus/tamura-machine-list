@@ -18,6 +18,7 @@ js/parser.js         reads Excel sheets into machine records
 js/app.js            login, list, edit, import, export, users
 supabase/schema.sql  database tables + security rules (run once)
 supabase/brand.sql   adds the Brand column to a database made before it existed (run once)
+supabase/permissions.sql  lets viewers add machines and edit their own; owner is the only admin (run once)
 ```
 
 ---

@@ -8,7 +8,7 @@
   var COL = { lastCal: "last_cal", nextCal: "next_cal", pcModel: "pc_model", checkBy: "check_by" };
   function col(f) { return COL[f] || f; }
   function fromRow(r) {
-    var m = { _id: r.id, key: r.key, updatedAt: r.updated_at };
+    var m = { _id: r.id, key: r.key, updatedAt: r.updated_at, createdBy: r.created_by || "" };
     FIELDS.forEach(function (f) { var v = r[col(f)]; m[f] = v == null ? "" : String(v); });
     if (!m.brand) m.brand = inferBrand(m.model);
     return m;
@@ -26,10 +26,13 @@
   // ---------- state ----------
   var state = { docs: new Map(), q: "", sort: "customer", dir: 1, group: "customer",
                 sel: { customer: new Set(), brand: new Set(), kind: new Set(), cal: new Set() },
-                hidden: new Set(), shut: new Set(), shutFacet: {}, facetQ: {}, hasBrand: true,
+                hidden: new Set(), shut: new Set(), shutFacet: {}, facetQ: {}, hasBrand: true, hasCreator: false,
                 role: null, user: null, ready: false, channel: null };
   var TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
   function isAdmin() { return state.role === "admin"; }
+  // Other approved accounts may add machines and edit the ones they added (needs supabase/permissions.sql)
+  function canAdd() { return isAdmin() || (state.role === "viewer" && state.hasCreator); }
+  function canEditMachine(m) { return isAdmin() || (!!m && state.hasCreator && !!state.user && m.createdBy === state.user.id); }
 
   // ---------- views ----------
   var VIEWS = ["viewLogin", "viewForgot", "viewSetPassword", "viewPending", "viewSetup", "viewApp"];
@@ -111,6 +114,7 @@
       $("userEmail").textContent = user.email || "";
       $("userRole").textContent = role; $("userRole").className = "role " + role;
       document.querySelectorAll("[data-admin]").forEach(function (b) { b.hidden = !isAdmin(); });
+      $("btnAdd").hidden = !canAdd();
       // Calibration report, transport claim, team tasks and schedule are for the owner account only
       document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = true; });
       if (window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) {
@@ -143,7 +147,10 @@
       });
     }
     // Databases set up before brands existed have no "brand" column yet (see supabase/brand.sql)
-    var probe = sb.from("machines").select("brand").limit(1).then(function (res) { state.hasBrand = !res.error; });
+    var probe = Promise.all([
+      sb.from("machines").select("brand").limit(1).then(function (res) { state.hasBrand = !res.error; }),
+      sb.from("machines").select("created_by").limit(1).then(function (res) { state.hasCreator = !res.error; $("btnAdd").hidden = !canAdd(); })
+    ]);
     return probe.then(function () { return next(0); }).then(function (rows) {
       var m = new Map(); rows.forEach(function (r) { var o = fromRow(r); m.set(o._id, o); });
       state.docs = m; state.ready = true;
@@ -185,7 +192,7 @@
   function toast(t) { var el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(function () { el.hidden = true; }, 3500); }
   function errText(err) {
     var m = (err && (err.message || err.details)) || String(err);
-    if (err && (err.code === "42501" || /row-level security|permission/i.test(m))) return "You don't have permission to change the machine list.";
+    if (err && (err.code === "42501" || /row-level security|permission/i.test(m))) return "You don't have permission for this. You can add machines and edit the ones you added.";
     if (err && err.code === "23505") return "A machine with this customer and serial number already exists.";
     return m;
   }
@@ -371,7 +378,7 @@
     $("count").textContent = rows.length === list.length ? list.length + " machines" : rows.length + " of " + list.length + " machines";
     var empty = $("empty");
     if (!state.ready) { empty.hidden = false; $("emptyTitle").textContent = "Loading machines…"; $("emptyText").textContent = "The machine list appears here once it loads."; }
-    else if (!list.length) { empty.hidden = false; $("emptyTitle").textContent = "No machines yet"; $("emptyText").textContent = isAdmin() ? "Upload your Excel machine list or add a machine by hand to start." : "Nothing has been added yet."; }
+    else if (!list.length) { empty.hidden = false; $("emptyTitle").textContent = "No machines yet"; $("emptyText").textContent = isAdmin() ? "Upload your Excel machine list or add a machine by hand to start." : canAdd() ? "Add the first machine to start." : "Nothing has been added yet."; }
     else if (!rows.length) { empty.hidden = false; $("emptyTitle").textContent = "No machines match"; $("emptyText").textContent = "Clear the search or remove a filter."; }
     else empty.hidden = true;
   }
@@ -426,16 +433,17 @@
   var editing = null;
   function openEdit(id) {
     var m = id ? state.docs.get(id) : null; editing = m;
-    var canEdit = isAdmin();
+    var canEdit = m ? canEditMachine(m) : canAdd();
     $("editTitle").textContent = m ? ([m.brand, m.model || m.kind].filter(Boolean).join(" ") + " · " + (m.serial || ("line " + m.line))) : "Add machine";
     var preset = { customer: only("customer"), brand: only("brand"), kind: only("kind") };
     FIELDS.forEach(function (f) { var el = $("e_" + f); el.value = m ? (m[f] || "") : (preset[f] || ""); el.disabled = !canEdit; });
     if (!state.hasBrand) { $("e_brand").disabled = true; $("e_brand").title = "Run supabase/brand.sql in Supabase to switch this field on"; }
     var mfg = $("e_mfg");
     if (m && m.mfg && !/^\d{4}-\d{2}$/.test(m.mfg)) { mfg.type = "text"; mfg.value = m.mfg; } else { mfg.type = "month"; mfg.value = m ? (m.mfg || "") : ""; }
-    $("editMeta").textContent = m && m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") : "";
+    $("editMeta").textContent = (m && m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") + ". " : "") +
+      (m && !isAdmin() ? (canEdit ? "You added this machine, so you can edit it." : "View only: you can edit the machines you added yourself.") : "");
     $("btnSave").hidden = !canEdit;
-    $("delArea").innerHTML = (m && canEdit) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
+    $("delArea").innerHTML = (m && isAdmin()) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
     $("dlgEdit").showModal();
     if (!m && canEdit) setTimeout(function () { $(preset.customer ? "e_kind" : "e_customer").focus(); }, 30);
   }
@@ -452,7 +460,7 @@
   });
   $("editForm").addEventListener("submit", function (e) {
     e.preventDefault();
-    if (!isAdmin()) return;
+    if (editing ? !canEditMachine(editing) : !canAdd()) return;
     var m = {}; FIELDS.forEach(function (f) { m[f] = $("e_" + f).value.trim(); });
     if (!m.customer || !m.kind) { toast("Customer and kind are required."); return; }
     var base = machineKey(m);
