@@ -6,7 +6,7 @@
 <title>Tamura Calibration Report</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
-<script src="../js/config.js"></script>
+<script src="../js/config.js?v=20261111b"></script>
 <meta name="robots" content="noindex, nofollow">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -896,6 +896,7 @@ async function cloudEnter(user){me=user;
   const role=p.data&&p.data.role;
   if(p.error){gateShow("login","Could not check your account: "+p.error.message);return}
   if(role!=="admin"&&role!=="viewer"){gateShow("pending");return}
+  if(!window.APP_IS_OWNER||!(await window.APP_IS_OWNER(user.email))){gateShow("login","This page is private. Go back to the Machine List.");return}
   document.getElementById("gate").hidden=true;
   document.getElementById("who").hidden=false;document.getElementById("who-email").textContent=user.email+" · "+role;
   await cloudLoadCustomers();mlLookup();

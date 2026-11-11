@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
-<script src="../js/config.js"></script>
+<script src="../js/config.js?v=20261111b"></script>
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -259,6 +259,7 @@ window.TC_CLOUD=(function(){
     if(p.error){gate('login','Could not check your account: '+p.error.message);return}
     const role=p.data&&p.data.role;
     if(role!=='admin'&&role!=='viewer'){gate('pending');return}
+    if(!window.APP_IS_OWNER||!(await window.APP_IS_OWNER(user.email))){gate('login','This page is private. Go back to the Machine List.');return}
     const r=await sb.from(T).select('key,data').eq('user_id',user.id);
     if(r.error){gate('login',/relation|does not exist|schema cache/i.test(r.error.message)?'The transport claim table is not set up yet. Run supabase/transport.sql once in the Supabase SQL Editor.':'Could not load your data: '+r.error.message);return}
     const out={};(r.data||[]).forEach(x=>out[x.key]=x.data);

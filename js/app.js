@@ -111,6 +111,11 @@
       $("userEmail").textContent = user.email || "";
       $("userRole").textContent = role; $("userRole").className = "role " + role;
       document.querySelectorAll("[data-admin]").forEach(function (b) { b.hidden = !isAdmin(); });
+      // Calibration report, transport claim, team tasks and schedule are for the owner account only
+      document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = true; });
+      if (window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) {
+        document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = !ok; });
+      });
       show("viewApp");
       loadMachines(); subscribe();
     });

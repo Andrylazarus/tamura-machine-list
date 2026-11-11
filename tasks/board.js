@@ -406,6 +406,7 @@
     if (p.error) return gate("login", "Could not check your account: " + p.error.message);
     const role = p.data && p.data.role;
     if (role !== "admin" && role !== "viewer") return gate("pending");
+    if (!window.APP_IS_OWNER || !(await window.APP_IS_OWNER(u.email))) return gate("login", "This page is private. Go back to the Machine List.");
     state.me = u.id; state.role = role;
     const m = await sb.rpc("team_members");
     state.members = m.error ? [{ id: u.id, email: u.email }] : (m.data || []);

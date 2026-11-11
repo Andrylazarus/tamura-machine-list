@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="js/config.js"></script>
+<script src="js/config.js?v=20261111b"></script>
 <script src="js/parser.js?v=20261111"></script>
 </head>
 <body>
@@ -82,10 +82,10 @@
       <a class="logo" href="./" aria-label="Tamura Machine List"><span class="mark" aria-hidden="true">T</span><span class="logo-t"><b>Tamura</b><i>Service portal</i></span></a>
       <nav class="mainnav" aria-label="Sections">
         <a href="./" aria-current="page">Machines</a>
-        <a href="calibration/">Calibration report</a>
-        <a href="transport/">Transport claim</a>
-        <a href="tasks/">Team tasks</a>
-        <a href="schedule/">Schedule</a>
+        <a href="calibration/" data-owner hidden>Calibration report</a>
+        <a href="transport/" data-owner hidden>Transport claim</a>
+        <a href="tasks/" data-owner hidden>Team tasks</a>
+        <a href="schedule/" data-owner hidden>Schedule</a>
       </nav>
       <div class="account">
         <span class="who"><span id="userEmail"></span><span class="role" id="userRole"></span></span>
@@ -260,6 +260,6 @@
 <datalist id="custList"></datalist><datalist id="brandList"></datalist><datalist id="kindList"></datalist><datalist id="modelList"></datalist><datalist id="osList"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="js/app.js?v=20261111"></script>
+<script src="js/app.js?v=20261111b"></script>
 </body>
 </html>
