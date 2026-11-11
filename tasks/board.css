@@ -275,3 +275,14 @@ div.stat { cursor: default; }
 .note-act .del:first-child:hover { color: var(--accent); }
 .add-note-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .add-note-foot .hint { font-size: 12px; color: var(--muted); }
+
+/* ---------- Task drawer: discussion first, Edit switches to the form ---------- */
+.view-card { display: none; }
+.drawer.viewing .view-card { display: grid; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.drawer.viewing .d-body > .row, .drawer.viewing .d-body > label.f, .drawer.viewing .d-body > .grid2, .drawer.viewing .d-body > .kind-seg,
+.drawer.viewing .d-foot, .drawer.viewing .confirm { display: none !important; }
+.drawer.editing #followSec { display: none; }
+.v-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.v-title { margin: 0; font-size: 18px; line-height: 1.3; }
+.v-who { font-size: 13px; color: var(--muted); }
+.v-details { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

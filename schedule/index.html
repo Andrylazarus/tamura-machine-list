@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../tasks/board.css?v=20261111k">
+<link rel="stylesheet" href="../tasks/board.css?v=20261111m">
 </head>
 <body data-page="schedule">
 <div class="gate" id="gate">
@@ -81,6 +81,7 @@
     <button class="btn" type="button" id="dClose">Close</button>
   </div>
   <form class="d-body" id="form" autocomplete="off">
+    <div class="view-card" id="viewCard" hidden></div>
     <div class="row" style="display:flex;justify-content:space-between;gap:10px;align-items:center">
       <span class="code" id="dCode"></span>
       <a class="cal-link" id="calLink" href="#" target="_blank" rel="noopener" hidden>Add to Google Calendar</a>
@@ -156,6 +157,6 @@
 <button class="fab" id="fab" type="button" aria-label="New activity">+ New activity</button>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="../tasks/board.js?v=20261111k"></script>
+<script src="../tasks/board.js?v=20261111m"></script>
 </body>
 </html>

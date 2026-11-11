@@ -286,7 +286,30 @@
     $("metaLine").textContent = "";
     if (t) { renderMeta(t); renderThread(); }
     $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false"); $("scrim").classList.add("open");
-    if (!t || !window.matchMedia("(max-width: 700px)").matches) setTimeout(() => $("fTitle").focus(), 50);
+    // An existing task opens on its discussion; the Edit button switches to the form
+    if (t && VIEW_FIRST) { renderView(t); setMode(true); $("drawer").querySelector(".d-body").scrollTop = 0; }
+    else { setMode(false); if (!t || !window.matchMedia("(max-width: 700px)").matches) setTimeout(() => $("fTitle").focus(), 50); }
+  }
+  const VIEW_FIRST = PAGE === "tasks";
+  function setMode(viewing) {
+    $("drawer").classList.toggle("viewing", viewing);
+    $("drawer").classList.toggle("editing", !viewing && !!state.editing && VIEW_FIRST);
+    if (state.editing && VIEW_FIRST) $("dTitle").textContent = viewing ? "Task discussion" : "Edit task";
+    $("cancelBtn").textContent = !viewing && state.editing && VIEW_FIRST ? "Back to discussion" : "Cancel";
+  }
+  function renderView(t) {
+    const st = STATUSES.find(s => s.id === t.status), who = assigneeName(t);
+    $("viewCard").replaceChildren(...[
+      h("div", { class: "v-top" }, h("span", { class: "code", text: codeOf(t) }),
+        h("button", { class: "btn", type: "button", text: "Edit task", onclick: () => { setMode(false); $("fTitle").focus(); } })),
+      h("h3", { class: "v-title", text: t.title }),
+      h("div", { class: "chips" },
+        st ? h("span", { class: "chip", text: st.label }) : null,
+        h("span", { class: "chip", text: (PRI_LABEL[t.priority] || "Medium") + " priority" }),
+        dueChip(t), t.category ? h("span", { class: "chip", text: t.category }) : null,
+        t.customer ? h("span", { class: "chip", text: t.customer }) : null),
+      h("div", { class: "v-who", text: who ? "Assigned to " + who : "Unassigned" }),
+      t.details ? h("p", { class: "v-details", text: t.details }) : null].filter(Boolean));
   }
   function closeDrawer() { state.editing = null; $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); $("scrim").classList.remove("open"); }
   // Discussion on one task: oldest message first, like a forum thread, with the reply box underneath
@@ -377,7 +400,11 @@
   $("newBtn").addEventListener("click", () => openDrawer(null, newKind()));
   $("fab").addEventListener("click", () => openDrawer(null, newKind()));
   $("dClose").addEventListener("click", closeDrawer);
-  $("cancelBtn").addEventListener("click", closeDrawer);
+  $("cancelBtn").addEventListener("click", () => {
+    const t = state.editing && state.tasks.find(x => x.id === state.editing);
+    if (t && VIEW_FIRST && !$("drawer").classList.contains("viewing")) { openDrawer(t); return; }   // back to the discussion, dropping unsaved edits
+    closeDrawer();
+  });
   $("scrim").addEventListener("click", closeDrawer);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("drawer").classList.contains("open")) closeDrawer(); });
   $("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
