@@ -6,7 +6,7 @@
 <title>Tamura Calibration Report</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
-<script src="../js/config.js?v=20261111f"></script>
+<script src="../js/config.js"></script>
 <meta name="robots" content="noindex, nofollow">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -406,10 +406,10 @@ function blank(){
     customer:"",address:"",contact:"",model:"Zenith UHS",serial:"",fabDate:"",jobNo:"-",
     dateFrom:new Date().toISOString().slice(0,10),dateTo:new Date().toISOString().slice(0,10),timeStart:"",timeEnd:"",
     tools:"Multi-height & illumination jig",process:"Verification of machine condition before calibration\nMaintenance and cleaning of the probe and mirror modules\nCalibration of illumination and Z-scale\nVerification of results after calibration",
-    spec:{d3:45,d3t:5,d2:90,d2t:3,vis:0.7,pztLo:99,pztHi:101,jigSN:"F00M-1434",jigH:501.7,jigTol:1.5},
+    spec:{d3:45,d3t:5,d2:90,d2t:3,vis:0.7,pztLo:99,pztHi:101,jigSN:"F00M-1434",jigH:501.7,jigTol:1.5,dlpNoms:"4000.6, 5000.1"},
     channels:8,
-    before:{rows:blankRows(8),graphs:["","","","","",""],g6:1,height:Array(9).fill(""),h3d:""},
-    after:{rows:blankRows(8),graphs:["","","","","",""],g6:1,height:Array(9).fill(""),h3d:""},
+    before:{rows:blankRows(8),graphs:["","","","","",""],g6:1,height:Array(9).fill(""),h3d:"",dlp:[],dlpImgs:[]},
+    after:{rows:blankRows(8),graphs:["","","","","",""],g6:1,height:Array(9).fill(""),h3d:"",dlp:[],dlpImgs:[]},
     photoSections:[{title:"Mirror module replacement",layout:"pair",items:[{a:"",b:"",cap:""}]}],
     chShots:Array.from({length:8},()=>({b:"",a:""})),
     tests:"Functional testing after maintenance and calibration confirmed that the machine operates properly.\nA production program trial run was completed successfully after probe cleaning and calibration.",
@@ -422,8 +422,8 @@ function example(){return blank()}
 /* ---------- state ---------- */
 let S;
 const KEY="tamura-cal-report-v1";
-function normalize(s){s=Object.assign(blank(),s);s.cert=Object.assign(blank().cert,s.cert||{});if(!s.cert.sig&&EX.certSig)s.cert.sig=EX.certSig;s.engineer=SIGNER;if(!s.sig&&EX.sig)s.sig=EX.sig;
-  for(const k of["before","after"]){const t=s[k];t.graphs=t.graphs||[];
+function normalize(s){s=Object.assign(blank(),s);s.cert=Object.assign(blank().cert,s.cert||{});s.spec=Object.assign(blank().spec,s.spec||{});if(!s.cert.sig&&EX.certSig)s.cert.sig=EX.certSig;s.engineer=SIGNER;if(!s.sig&&EX.sig)s.sig=EX.sig;
+  for(const k of["before","after"]){const t=s[k];t.graphs=t.graphs||[];t.dlp=t.dlp||[];t.dlpImgs=t.dlpImgs||[];
     if(!t.g6&&t.graphs.length===4)t.graphs=[t.graphs[2],t.graphs[3],t.graphs[0],t.graphs[1]];
     while(t.graphs.length<6)t.graphs.push("");t.g6=1;
     while(t.rows.length<s.channels)t.rows.push(...blankRows(1))}
@@ -450,13 +450,13 @@ function chk(kind,v,flag){const n=num(v);if(n===null)return null;const p=S.spec;
   if(kind==="d2")return Math.abs(n-p.d2)<=p.d2t+1e-9;
   if(kind==="vis")return n>p.vis;
   if(kind==="pzt")return n>=p.pztLo-1e-9&&n<=p.pztHi+1e-9;
-  if(kind==="h"){const t=p.jigH*p.jigTol/100;return Math.abs(n-p.jigH)<=t+1e-9}
+  if(kind==="h"){const nom=flag!==undefined&&flag!==null?+flag:p.jigH;const t=nom*p.jigTol/100;return Math.abs(n-nom)<=t+1e-9}
   return null}
 function rowRes(r){const c=[chk("d3",r.d3,r.w3),chk("d2",r.d2,r.w2),chk("vis",r.vis),...r.pzt.map(v=>chk("pzt",v))].filter(x=>x!==null);
   if(!c.length)return"";return c.includes(false)?"FAIL":"PASS"}
 function tableStats(t){const rs=t.rows.slice(0,S.channels).map(rowRes);return{pass:rs.filter(x=>x==="PASS").length,fail:rs.filter(x=>x==="FAIL").length,filled:rs.filter(Boolean).length,n:S.channels}}
-function heightStats(arr){const v=arr.map(num).filter(x=>x!==null);if(!v.length)return null;
-  const dev=v.map(x=>x-S.spec.jigH);const maxAbs=Math.max(...dev.map(Math.abs));const ok=arr.every(x=>chk("h",x)!==false);
+function heightStats(arr,nom){nom=nom==null?S.spec.jigH:+nom;const v=arr.map(num).filter(x=>x!==null);if(!v.length)return null;
+  const dev=v.map(x=>x-nom);const maxAbs=Math.max(...dev.map(Math.abs));const ok=arr.every(x=>chk("h",x,nom)!==false);
   const mean=v.reduce((a,b)=>a+b,0)/v.length;return{ok,maxAbs,mean,n:v.length}}
 
 /* ---------- report blocks ---------- */
@@ -484,13 +484,17 @@ function verifyTable(){const V=S.verify,b=V.before,a=V.after,r0=b||a;const n=Mat
   return h}
 function minCmk(x){if(!x||!x.pos.length)return null;return Math.min(...x.pos.map(p=>+p.cmk))}
 function chTxt(chs){const out=[];for(let i=0;i<chs.length;i++){let j=i;while(j+1<chs.length&&chs[j+1]===chs[j]+1)j++;out.push(j>i+1?`CH${chs[i]}–CH${chs[j]}`:j===i+1?`CH${chs[i]}, CH${chs[j]}`:`CH${chs[i]}`);i=j}return out.join(", ")}
-function heightTable(arr){const p=S.spec,t=p.jigH*p.jigTol/100;
+function heightTable(arr,nom,lab){const p=S.spec,H0=nom==null?p.jigH:+nom,t=H0*p.jigTol/100;
   let h=`<table class="dt"><thead><tr><th class="rowh" style="background:var(--p-navy)!important;color:var(--p-white)">Point</th>${arr.map((_,i)=>`<th>${i+1}</th>`).join("")}</tr></thead><tbody>
-  <tr><td class="rowh">Height (µm)</td>${arr.map(v=>cell("h",v)).join("")}</tr>
-  <tr><td class="rowh">Deviation</td>${arr.map(v=>{const n=num(v);if(n===null)return"<td></td>";const d=n-p.jigH;return`<td class="dev ${chk("h",v)===false?"bad":""}">${d>=0?"+":""}${d.toFixed(2)}</td>`}).join("")}</tr></tbody></table>`;
-  const st=heightStats(arr);
-  h+=`<div class="note">Jig ${esc(p.jigSN)} nominal ${p.jigH} µm, tolerance ±${p.jigTol}% (${(p.jigH-t).toFixed(2)} – ${(p.jigH+t).toFixed(2)} µm).${st?` Mean ${st.mean.toFixed(2)} µm, max deviation ${st.maxAbs.toFixed(2)} µm → <b style="color:var(${st.ok?"--p-green":"--p-red"})">${st.ok?"PASS":"FAIL"}</b>`:""}</div>`;
+  <tr><td class="rowh">Height (µm)</td>${arr.map(v=>{const c=chk("h",v,H0);return`<td class="${c===false?"bad":""}">${v===""||v==null?"–":esc(v)}</td>`}).join("")}</tr>
+  <tr><td class="rowh">Deviation</td>${arr.map(v=>{const n=num(v);if(n===null)return"<td></td>";const d=n-H0;return`<td class="dev ${chk("h",v,H0)===false?"bad":""}">${d>=0?"+":""}${d.toFixed(2)}</td>`}).join("")}</tr></tbody></table>`;
+  const st=heightStats(arr,H0);
+  h+=`<div class="note">${lab?esc(lab)+" · ":""}Jig ${esc(p.jigSN)} nominal ${H0} µm, tolerance ±${p.jigTol}% (${(H0-t).toFixed(2)} – ${(H0+t).toFixed(2)} µm).${st?` Mean ${st.mean.toFixed(2)} µm, max deviation ${st.maxAbs.toFixed(2)} µm → <b style="color:var(${st.ok?"--p-green":"--p-red"})">${st.ok?"PASS":"FAIL"}</b>`:""}</div>`;
   return h}
+function dlpBlocks(t,label,add){const ds=(t.dlp||[]).filter(d=>d.h.some(x=>x!==""));const im=(t.dlpImgs||[]).filter(Boolean);if(!ds.length&&!im.length)return;
+  add(H(label,"DLP · multi-height jig"),{keep:true});
+  ds.forEach((d,i)=>add(`<div class="sub-h" style="font-weight:600;font-size:8.6pt;margin:${i?"1.5mm":"0"} 0 1mm">Jig level ${esc(d.nom)} µm</div>`+heightTable(d.h,d.nom)));
+  for(let i=0;i<im.length;i+=2)add(`<div class="figs">${im.slice(i,i+2).map((x,j)=>fig(x,"",`3D height view${ds[i+j]?" · "+ds[i+j].nom+" µm level":""}`,"56mm")).join("")}</div>`)}
 const ratioCache=new Map();
 function ratio(d){if(!d)return 4/3;if(ratioCache.has(d))return ratioCache.get(d);ratioCache.set(d,4/3);
   const im=new Image();im.onload=()=>{ratioCache.set(d,im.naturalWidth/im.naturalHeight||4/3);rerender()};im.src=src(d);return 4/3}
@@ -518,6 +522,7 @@ function blocks(){
   add(dataTable(S.before));
   if(S.before.graphs.some(Boolean)){add(H("Before calibration · graphs"),{keep:true});graphRows(S.before).forEach(h=>add(h))}
   if(S.before.height.some(x=>x!=="")){add(H("Height check before calibration"),{keep:true});add(heightTable(S.before.height)+(S.before.h3d?fig(S.before.h3d,"","3D height view of jig").replace('class="fig"','class="fig view"'):""))}
+  dlpBlocks(S.before,"DLP height check before calibration",add);
   // photo sections
   S.photoSections.forEach(sec=>{
     if(!sec.items.length)return;
@@ -540,6 +545,7 @@ function blocks(){
   add(dataTable(S.after));
   if(S.after.graphs.some(Boolean)){add(H("After calibration · graphs"),{keep:true});graphRows(S.after).forEach(h=>add(h))}
   if(S.after.height.some(x=>x!=="")){add(H("Height check after calibration"),{keep:true});add(heightTable(S.after.height)+(S.after.h3d?fig(S.after.h3d,"","3D height view of jig").replace('class="fig"','class="fig view"'):""))}
+  dlpBlocks(S.after,"DLP height check after calibration",add);
   if(S.verify&&S.verifyOn&&(S.verify.before||S.verify.after)){add(H("Machine verification report","KYCal · height repeatability (CMK)"),{keep:true});add(verifyTable())}
   if(lines(S.tests).length){add(H("Final testing"),{keep:true});add(listHTML(S.tests))}
   if(lines(S.conclusion).length){add(H("Conclusion"),{keep:true});add(`<div class="callout">${listHTML(S.conclusion)}</div>`)}
@@ -630,14 +636,19 @@ function gridIn(base){const t=get(base);let h=`<div class="grid-in"><table><thea
 function heightIn(base){const a=get(base);return`<div class="grid-in"><table><thead><tr>${a.map((_,i)=>`<th>${i+1}</th>`).join("")}</tr></thead><tbody><tr>${a.map((v,i)=>`<td><input id="in-${base.replace(/\./g,"-")}-${i}" data-k="${base}.${i}" data-chk="h" inputmode="decimal" value="${esc(v)}" class="${chk("h",v)===false?"bad":""}" aria-label="Height point ${i+1}"></td>`).join("")}</tr></tbody></table></div>`}
 function stageIn(base,title){return`<div class="sub">Measurements</div>${gridIn(base)}
   <div class="sub">Graphs (screenshots from the machine)</div><div class="slots">${GRAPH_NAMES.map((n,i)=>slot(`${base}.graphs.${i}`,n)).join("")}</div>
-  <div class="sub">Height check (µm)</div>${heightIn(base+".height")}<div class="slots">${slot(base+".h3d","3D height view")}</div>`}
+  <div class="sub">Height check (µm)</div>${heightIn(base+".height")}<div class="slots">${slot(base+".h3d","3D height view")}</div>
+  <div class="sub">DLP height check (µm)</div>${dlpIn(base)}`}
+function dlpIn(base){const t=get(base);t.dlp=t.dlp||[];t.dlpImgs=t.dlpImgs||[];if(!t.dlp.length)return`<button class="btn sm" type="button" data-adddlp="${base}" style="justify-self:start">+ Add DLP height check</button>`;
+  return t.dlp.map((d,k)=>`<div class="inline" style="align-items:flex-end">${inp(`${base}.dlp.${k}.nom`,"Jig level µm",{mode:"decimal"})}<button class="btn sm" type="button" data-rmdlp="${base}.${k}">Remove</button></div>
+    <div class="grid-in"><table><thead><tr>${d.h.map((_,i)=>`<th>${i+1}</th>`).join("")}</tr></thead><tbody><tr>${d.h.map((v,i)=>`<td><input id="in-${base}-dlp-${k}-${i}" data-k="${base}.dlp.${k}.h.${i}" inputmode="decimal" value="${esc(v)}" class="${chk("h",v,d.nom)===false?"bad":""}" aria-label="DLP ${esc(d.nom)} point ${i+1}"></td>`).join("")}</tr></tbody></table></div>`).join("")+
+    `<div class="slots">${[0,1,2].slice(0,Math.max(2,t.dlp.length)).map(i=>slot(`${base}.dlpImgs.${i}`,`3D view ${t.dlp[i]?t.dlp[i].nom+" µm":""}`)).join("")}</div>`}
 const sec=(id,title,body,note)=>`<details class="sec" id="sec-${id}" ${openSecs.has(id)?"open":""}><summary>${title}${note?`<small>${note}</small>`:""}</summary><div class="sec-body">${body}</div></details>`;
 let openSecs=new Set(["info"]);
 function buildForm(){
   const ed=document.getElementById("editor");const sc=ed.scrollTop;
   ed.querySelectorAll("details.sec").forEach(d=>{const id=d.id.slice(4);d.open?openSecs.add(id):openSecs.delete(id)});
   const bs=tableStats(S.before),as=tableStats(S.after);
-  ed.innerHTML=`<p class="hint"><b>Import folder</b> fills the report from the machine files (BRIGHT, 3D, HEIGHT .txt, graphs 1–7, CH1…, mirror / probe photos or zips in Before / After, Glass-before / Glass-after for the AOI probe cover glass, and VerifyReport.html). Your work saves automatically in this browser. Use <b>Save data</b> to keep a copy of each report, and <b>Print / PDF</b> to export. PASS / FAIL and out-of-spec values are marked automatically.</p>`+
+  ed.innerHTML=`<p class="hint"><b>Import folder</b> fills the report from the machine files (BRIGHT, 3D, HEIGHT .txt, graphs 1–7, CH1…, mirror / probe photos or zips in Before / After, Glass-before / Glass-after or cover-before / cover-after for the AOI probe cover glass, and a DLP folder with dlp.txt and 3D views for DLP machines). The KYCal verification report is read for machine data only and is not added to the report unless you switch it on. Your work saves automatically in this browser. Use <b>Save data</b> to keep a copy of each report, and <b>Print / PDF</b> to export. PASS / FAIL and out-of-spec values are marked automatically.</p>`+
   sec("info","Report & visit",`<label class="f">Report style<select id="in-style" data-k="style">${[["a","A · Modern blue"],["b","B · Formal black & white"],["c","C · Tamura red, numbered sections"]].map(([v,l])=>`<option value="${v}" ${(S.style||"a")===v?"selected":""}>${l}</option>`).join("")}</select></label><div class="row"><label class="f">Report No<span class="inline"><input id="in-reportNo" data-k="reportNo" value="${esc(S.reportNo)}" placeholder="026/TTI-AL/IX/26"><button class="btn sm" type="button" id="btn-gen" title="Build number from date">Auto</button></span></label>${inp("date","Report date",{type:"date"})}</div>
     ${inp("subject","Subject")}
     <div class="sub">Call description</div><div class="checks">${CALL_TYPES.map((c,i)=>`<label><input type="checkbox" id="ct-${i}" data-ct="${c}" ${S.callTypes.includes(c)?"checked":""}>${c}</label>`).join("")}</div>
@@ -652,7 +663,8 @@ function buildForm(){
     <div class="row">${inp("spec.d3","3D brightness target",{mode:"decimal"})}${inp("spec.d3t","± tolerance",{mode:"decimal"})}</div>
     <div class="row">${inp("spec.d2","2D brightness target",{mode:"decimal"})}${inp("spec.d2t","± tolerance",{mode:"decimal"})}</div>
     <div class="row3">${inp("spec.vis","Visibility >",{mode:"decimal"})}${inp("spec.pztLo","PZT min",{mode:"decimal"})}${inp("spec.pztHi","PZT max",{mode:"decimal"})}</div>
-    <div class="row3">${inp("spec.jigSN","Jig S/N")}${inp("spec.jigH","Jig height µm",{mode:"decimal"})}${inp("spec.jigTol","Tolerance %",{mode:"decimal"})}</div>`)+
+    <div class="row3">${inp("spec.jigSN","Jig S/N")}${inp("spec.jigH","Jig height µm",{mode:"decimal"})}${inp("spec.jigTol","Tolerance %",{mode:"decimal"})}</div>
+    ${inp("spec.dlpNoms","DLP jig levels µm (comma separated)")}`)+
   sec("before","Before calibration",stageIn("before"),bs.filled?`${bs.pass}/${bs.n} pass`:"")+
   sec("photos","Maintenance photos",S.photoSections.map((p,si)=>`<div class="card"><div class="head">${inp(`photoSections.${si}.title`,"Section title")}<label class="f" style="flex:0 0 120px">Layout<select id="lay-${si}" data-lay="${si}"><option value="pair" ${p.layout==="pair"?"selected":""}>Before / After</option><option value="grid" ${p.layout==="grid"?"selected":""}>Photos only</option></select></label></div>
       ${p.items.map((it,ii)=>`<div class="item">${p.layout==="pair"?`<div class="pairs">${slot(`photoSections.${si}.items.${ii}.b`,"Before")}${slot(`photoSections.${si}.items.${ii}.a`,"After")}</div>`:`<div class="pairs">${slot(`photoSections.${si}.items.${ii}.a`,"Photo")}<div></div></div>`}
@@ -691,6 +703,8 @@ let imgTarget=null;const fImg=document.getElementById("file-img");
 ed.addEventListener("click",e=>{const t=e.target;
   const clr=t.closest("[data-clr]");if(clr){e.stopPropagation();set(clr.dataset.clr,"");if(clr.dataset.clr==="sig")cloudSaveEngineer();if(clr.dataset.clr==="cert.sig")cloudSaveCertSig();buildForm();persist();rerender();return}
   const th=t.closest("[data-img]");if(th){imgTarget=th.dataset.img;fImg.value="";fImg.click();return}
+  if(t.dataset.adddlp){const tg=get(t.dataset.adddlp);tg.dlp=dlpNoms().map(n=>({nom:String(n),h:Array(9).fill("")}));buildForm();persist();rerender();return}
+  if(t.dataset.rmdlp){const [b,k]=t.dataset.rmdlp.split(".");S[b].dlp.splice(+k,1);S[b].dlpImgs.splice(+k,1);buildForm();persist();rerender();return}
   if(t.dataset.additem!=null){S.photoSections[+t.dataset.additem].items.push({a:"",b:"",cap:""});buildForm();persist();rerender()}
   else if(t.dataset.rmitem){const[a,b]=t.dataset.rmitem.split(".").map(Number);S.photoSections[a].items.splice(b,1);buildForm();persist();rerender()}
   else if(t.dataset.rmsec!=null){S.photoSections.splice(+t.dataset.rmsec,1);buildForm();persist();rerender()}
@@ -760,6 +774,19 @@ async function blobToDataURL(blob,max,name){const ext=String(name||"").split("."
       const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.85))}catch(e){res(u)}};
     im.onerror=()=>rej(new Error("image"));im.src=u})}
 const natural=(a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:"base"});
+function parseHeightBlocks(txt){const out=[];let cur=[],pos=null;
+  for(const l of txt.split(/\r?\n/)){if(/Total Statistics/i.test(l)){if(cur.length)out.push(cur);cur=[];pos=null;continue}
+    const p=l.match(/Pos\.?\s*Total\s*:\s*\[([^\]]+)\]/i);if(p){pos=p[1];continue}
+    const a=l.match(/H\(avg:\s*([\d.]+)/i);if(a&&pos){cur.push(a[1]);pos=null}}
+  if(cur.length)out.push(cur);return out}
+function dlpNoms(){return String(S.spec.dlpNoms||"").split(/[,;\s]+/).map(num).filter(x=>x!==null)}
+/* DLP file may repeat the normal height check first: drop blocks identical to HEIGHT.txt, then keep the last block per jig level */
+function pickDlp(dlpTxt,heightTxt,noms){let bl=parseHeightBlocks(dlpTxt);const hb=heightTxt?parseHeightBlocks(heightTxt).map(b=>b.join("|")):[];
+  bl=bl.filter(b=>!hb.includes(b.join("|")));if(!bl.length)return[];
+  const mean=b=>b.reduce((a,x)=>a+ +x,0)/b.length;const by=new Map();
+  for(const b of bl){const m=mean(b);let nom=noms.length?noms.reduce((a,x)=>Math.abs(x-m)<Math.abs(a-m)?x:a):Math.round(m/100)*100;
+    if(Math.abs(nom-m)>nom*0.1)nom=Math.round(m/100)*100;by.set(nom,b)}
+  return[...by.entries()].sort((a,b)=>a[0]-b[0]).map(([n,h])=>({nom:String(n),h:h.slice()}))}
 const GRAPH_FILE={4:0,3:1,5:2,6:3,1:4,2:5};
 async function expandZips(entries,notes){const out=[];
   for(const e of entries){if(!/\.zip$/i.test(e.path)){out.push(e);continue}
@@ -769,15 +796,20 @@ async function expandZips(entries,notes){const out=[];
     catch(x){notes.push(`${e.path.split("/").at(-1)} could not be opened`)}}
   return out}
 async function importEntries(entries){const notes=[];entries=await expandZips(entries,notes);
-  const st={before:{imgs:[]},after:{imgs:[]}};const reports=[];let root="";
+  const st={before:{imgs:[],dlpImgs:[]},after:{imgs:[],dlpImgs:[]}};const reports=[];let root="";const dlpNomSet=[];let folderDate="";const extra=[];
   for(const e of entries){const p=e.path.replace(/\\/g,"/").replace(/^\/+/,"");const segs=p.split("/");const name=segs.at(-1);
     if(!name||name.startsWith(".")||/__MACOSX/.test(p))continue;
     if(!root&&segs.length>1)root=segs[0];
     if(/verifyreport\.html?$/i.test(name)){reports.push(parseVerify(await e.blob.text()));continue}
+    if(/\.html?$/i.test(name)){const tx=await e.blob.text();if(/KYCal\s+Verification\s+Report/i.test(tx)){
+      if(/dlp/i.test(name))((tx.match(/Height\s*:\s*([\d.]+)/g)||[]).forEach(x=>{const v=+x.match(/([\d.]+)/)[1];if(!dlpNomSet.includes(v))dlpNomSet.push(v)}));
+      else{const r=parseVerify(tx);r.prod=r.prod||"";if(/after/i.test(name)&&!/after/i.test(r.prod))r.prod+=" After";reports.push(r)}}continue}
+    {const dm=segs.slice(0,-1).find(s=>/^\d{8}$/.test(s));if(dm&&!folderDate){const d=dm.slice(0,2),mo=dm.slice(2,4),y=dm.slice(4);if(+mo>=1&&+mo<=12&&+d>=1&&+d<=31)folderDate=`${y}-${mo}-${d}`}}
     const dir=segs.slice(0,-1).join("/").toLowerCase();const si=segs.findIndex((s,i)=>i<segs.length-1&&/before|after/i.test(s));
     let sg=si<0?null:/before/i.test(segs[si])?"before":"after";let rel=segs.slice(si+1).join("/").replace(/\.[^.]+$/,"").toLowerCase();
-    if(!sg&&/\.(png|jpe?g|bmp|gif|webp)$/i.test(name)&&/glass|mirror|probe/i.test(p)){const m=name.match(/before|after/i);if(m){sg=m[0].toLowerCase();rel=segs.join("/").replace(/\.[^.]+$/,"").toLowerCase()}}
+    if(!sg&&/\.(png|jpe?g|bmp|gif|webp)$/i.test(name)&&/glass|cover|mirror|probe/i.test(p)){const m=name.match(/before|after/i);if(m){sg=m[0].toLowerCase();rel=segs.join("/").replace(/\.[^.]+$/,"").toLowerCase()}else{extra.push({name,rel:p.toLowerCase(),blob:e.blob});continue}}
     if(!sg)continue;const T=st[sg];
+    if(segs.slice(si+1,-1).some(s=>/^dlp$/i.test(s))){if(/\.txt$/i.test(name))T.dlp=await e.blob.text();else if(/\.(png|jpe?g|bmp|gif|webp)$/i.test(name))T.dlpImgs.push({name,rel,blob:e.blob});continue}
     if(/\.txt$/i.test(name)){const tx=await e.blob.text();
       if(/bright/i.test(name))T.bright=tx;else if(/height/i.test(name))T.height=tx;else if(/^3d/i.test(name)||/3d\s*check/i.test(dir))T.d3=tx}
     else if(/\.(png|jpe?g|bmp|gif|webp)$/i.test(name))T.imgs.push({base:name.replace(/\.[^.]+$/,""),name,rel,blob:e.blob})}
@@ -788,21 +820,25 @@ async function importEntries(entries){const notes=[];entries=await expandZips(en
   for(const sg of["before","after"]){const T=st[sg],tg=N[sg];
     const b=T.bright?parseBright(T.bright):null,z=T.d3?parse3D(T.d3):null,h=T.height?parseHeight(T.height):null;
     const n3=Math.max(b?b.d3.length:0,z?z.length:0);const n=n3||(b?b.d2.length:0);maxN=Math.max(maxN,n);
-    if(b&&n3&&b.d2.length>n3)notes.push(`${sg}: 2D Ch${n3+1}–Ch${b.d2.length} not shown (report follows ${n3} 3D channels)`);
+    if(b&&n3&&b.d2.length>n3)notes.push(`${sg}: 2D Ch${n3+1}${b.d2.length>n3+1?"–Ch"+b.d2.length:""} not shown (report follows ${n3} 3D channels)`);
     if(n){tg.count=b&&b.count;tg.rows=Array.from({length:Math.max(n,8)},(_,i)=>{const r={d3:"",d2:"",vis:"",pzt:["","","",""]};if(i>=n)return r;
       if(b&&b.d3[i]){r.d3=b.d3[i].v;r.w3=b.d3[i].warn}if(b&&b.d2[i]){r.d2=b.d2[i].v;r.w2=b.d2[i].warn}
       if(z&&z[i]){r.vis=z[i].vis;r.pzt=[0,1,2,3].map(j=>z[i].pzt[j]||"")}return r})}
     if(h&&h.length)tg.height=h.map(x=>x.avg);
+    if(T.dlp){const nm=dlpNomSet.length?dlpNomSet.slice().sort((a,b)=>a-b):dlpNoms();tg.dlp=pickDlp(T.dlp,T.height,nm);if(dlpNomSet.length)N.spec.dlpNoms=nm.join(", ");if(!tg.dlp.length)notes.push(`${sg}: DLP .txt has no height data`)}
+    T.dlpImgs.sort((x,y)=>natural(x.rel,y.rel));tg.dlpImgs=[];for(const im of T.dlpImgs){try{tg.dlpImgs.push(await blobToDataURL(im.blob,1400,im.name))}catch(e){(bad[sg]=bad[sg]||[]).push(im.name)}}
     if(!T.bright)notes.push(`${sg}: BRIGHT .txt missing`);if(!T.d3)notes.push(`${sg}: 3D .txt missing`);if(!T.height)notes.push(`${sg}: HEIGHT .txt missing`);
     T.imgs.sort((x,y)=>natural(x.rel,y.rel));
     for(const im of T.imgs){const lb=im.base.toLowerCase();let url;try{url=await blobToDataURL(im.blob,1400,im.name)}catch(e){(bad[sg]=bad[sg]||[]).push(im.name);continue}
       if(/^\d+$/.test(lb)){const k=+lb;if(k===7)tg.h3d=url;else if(k in GRAPH_FILE)tg.graphs[GRAPH_FILE[k]]=url}
       else if(/^ch\s*0*(\d+)$/.test(lb)){const k=+lb.match(/(\d+)/)[1]-1;while(N.chShots.length<=k)N.chShots.push({b:"",a:""});N.chShots[k][sg==="before"?"b":"a"]=url}
-      else if(/glass/.test(im.rel))glass[sg].push(url);else if(/mirror/.test(im.rel))mirrors[sg].push(url);else if(/probe/.test(im.rel))probes[sg].push(url)}}
+      else if(/glass|cover/.test(im.rel))glass[sg].push(url);else if(/mirror/.test(im.rel))mirrors[sg].push(url);else if(/probe/.test(im.rel))probes[sg].push(url)}}
   for(const [sg,l] of Object.entries(bad))notes.push(`${sg}: ${l.length} image${l.length>1?"s":""} could not be read (${l.slice(0,3).join(", ")}${l.length>3?", …":""})`);
   N.channels=Math.max(1,maxN||S.channels);
   const pairs=(m,title)=>{const n=Math.max(m.before.length,m.after.length);return n?{title,layout:"pair",items:Array.from({length:n},(_,i)=>({b:m.before[i]||"",a:m.after[i]||"",cap:""}))}:null};
   N.photoSections=[pairs(mirrors,"Mirror modules – before / after cleaning"),pairs(glass,"Probe cover glass – before / after cleaning"),pairs(probes,"Probe – before / after cleaning")].filter(Boolean);
+  if(extra.length){extra.sort((x,y)=>natural(x.rel,y.rel));const items=[];for(const x of extra){try{items.push({a:await blobToDataURL(x.blob,1400,x.name),b:"",cap:/probe/i.test(x.name)?"Probe head":""})}catch(e){}}
+    if(items.length)N.photoSections.push({title:"Probe",layout:"grid",items})}
   if(!N.photoSections.length)N.photoSections=[];
   const m=root.match(/[A-Z]{2}-[A-Z]{2}-\d{3,6}/i);if(m)N.serial=m[0].toUpperCase();
   reports.sort((x,y)=>(x.date+x.time).localeCompare(y.date+y.time));
@@ -815,7 +851,8 @@ async function importEntries(entries){const notes=[];entries=await expandZips(en
     if(r0.target)N.spec.jigSN=r0.target;
     if(r0.nominal){N.spec.jigH=r0.nominal;if(r0.tol)N.spec.jigTol=Math.round(r0.tol/r0.nominal*100*1000)/1000}
     const pick=r=>r&&{date:r.date,time:r.time,target:r.target,nominal:r.nominal,tol:r.tol,rep:r.rep,sum:r.sum,pos:r.pos,model:r.model,serial:r.serial,loc:r.loc};
-    N.verify={before:reports.length>1||!/after/i.test((rb||{}).prod||"")?pick(rb):null,after:reports.length>1?pick(ra):(/after/i.test((ra||{}).prod||"")?pick(ra):null)};N.verifyOn=true}
+    N.verify={before:reports.length>1||!/after/i.test((rb||{}).prod||"")?pick(rb):null,after:reports.length>1?pick(ra):(/after/i.test((ra||{}).prod||"")?pick(ra):null)};N.verifyOn=false}
+  if(folderDate&&!reports.some(r=>r.date)){N.date=N.dateFrom=N.dateTo=folderDate}
   S=normalize(N);S.conclusion=genConclusion();
   return{notes,root}}
 function joinAnd(a){return a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a.at(-1)}
@@ -834,6 +871,9 @@ function genConclusion(){const p=S.spec,tol=p.jigH*p.jigTol/100,L=[];
   const hb=heightStats(S.before.height),ha=heightStats(S.after.height);
   if(hb&&!hb.ok){const bad=S.before.height.filter(v=>chk("h",v)===false).length;L.push(`Height check before calibration was out of tolerance at ${bad} of ${hb.n} points (maximum deviation ${hb.maxAbs.toFixed(2)} µm).`)}
   if(ha)L.push(`Height accuracy after calibration: average ${ha.mean.toFixed(2)} µm against the ${p.jigH} µm reference jig (tolerance ±${tol.toFixed(2)} µm), maximum deviation ${ha.maxAbs.toFixed(2)} µm${hb?` (before: average ${hb.mean.toFixed(2)} µm, maximum deviation ${hb.maxAbs.toFixed(2)} µm)`:""}; ${ha.ok?"within tolerance":"out of tolerance"}.`);
+  {const da=(S.after.dlp||[]).map(d=>({d,s:heightStats(d.h,d.nom)})).filter(x=>x.s),db=(S.before.dlp||[]).map(d=>({d,s:heightStats(d.h,d.nom)})).filter(x=>x.s);
+    const bf=db.filter(x=>!x.s.ok);if(bf.length)L.push(`DLP height check before calibration was out of tolerance at the ${joinAnd(bf.map(x=>x.d.nom+" µm"))} level.`);
+    if(da.length)L.push(`DLP height check after calibration: ${joinAnd(da.map(x=>`${x.d.nom} µm level average ${x.s.mean.toFixed(2)} µm, maximum deviation ${x.s.maxAbs.toFixed(2)} µm`))} (tolerance ±${p.jigTol}%); ${da.every(x=>x.s.ok)?"within tolerance":"out of tolerance"}.`)}
   const V=S.verifyOn&&S.verify;if(V){const cb=minCmk(V.before),ca=minCmk(V.after);
     if(ca!==null)L.push(`Machine verification (KYCal): height ${V.after.sum?V.after.sum.result:""} after calibration with minimum CMK ${ca.toFixed(2)}${cb!==null?` (before: ${cb.toFixed(2)})`:""}, showing ${cb!==null&&ca>cb?"improved":"stable"} measurement repeatability.`)}
   return L.join("\n")}
@@ -896,7 +936,6 @@ async function cloudEnter(user){me=user;
   const role=p.data&&p.data.role;
   if(p.error){gateShow("login","Could not check your account: "+p.error.message);return}
   if(role!=="admin"&&role!=="viewer"){gateShow("pending");return}
-  if(!window.APP_IS_OWNER||!(await window.APP_IS_OWNER(user.email))){gateShow("login","This page is private. Go back to the Machine List.");return}
   document.getElementById("gate").hidden=true;
   document.getElementById("who").hidden=false;document.getElementById("who-email").textContent=user.email+" · "+role;
   await cloudLoadCustomers();mlLookup();
