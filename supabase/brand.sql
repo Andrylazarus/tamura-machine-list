@@ -6,7 +6,13 @@
 
 alter table public.machines add column if not exists brand text not null default '';
 
--- Fill in the brand of the machines already in the list, from the model name
+-- Every AOI, SPI and Review machine in the list today is a Koh Young
+update public.machines
+   set brand = 'Koh Young'
+ where brand = ''
+   and kind ~* '(aoi|spi|review)';
+
+-- Anything else: fill in the brand from the model name where it is recognisable
 update public.machines
    set brand = 'Koh Young'
  where brand = ''
