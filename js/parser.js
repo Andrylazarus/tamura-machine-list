@@ -1,13 +1,14 @@
 // Excel → machine records. Shared by the import screen.
 // Each sheet = one customer; headers are matched by name (two-row headers supported).
-var FIELDS = ["customer","kind","model","line","serial","mfg","version","lastCal","nextCal","ip","os","pcModel","memory","vga","location","checkBy","notes"];
-var LABELS = {customer:"Customer",kind:"Kind",model:"Model",line:"Line",serial:"Serial Number",mfg:"Manufactured Year",version:"Current Version",lastCal:"Last Calibration",nextCal:"Next Calibration",ip:"IP Address",os:"OS",pcModel:"PC Model",memory:"Memory",vga:"VGA",location:"Location",checkBy:"Check By",notes:"Notes"};
+var FIELDS = ["customer","brand","kind","model","line","serial","mfg","version","lastCal","nextCal","ip","os","pcModel","memory","vga","location","checkBy","notes"];
+var LABELS = {customer:"Customer",brand:"Brand",kind:"Kind",model:"Model",line:"Line",serial:"Serial Number",mfg:"Manufactured Year",version:"Current Version",lastCal:"Last Calibration",nextCal:"Next Calibration",ip:"IP Address",os:"OS",pcModel:"PC Model",memory:"Memory",vga:"VGA",location:"Location",checkBy:"Check By",notes:"Notes"};
 
 function normHeader(h){ return String(h==null?"":h).toLowerCase().replace(/[^a-z0-9]/g,""); }
 function headerField(h){
   var n = normHeader(h);
   if(!n) return null;
   if(n==="no"||n==="nr"||n==="number"||n==="pcspecifications"||n==="agents"||n==="agent") return null;
+  if(n==="brand"||n==="maker"||n==="make"||n==="manufacturer"||n==="vendor"||n==="machinebrand"||n==="merk"||n==="merek") return "brand";
   if(n.indexOf("serial")===0||n==="sn"||n==="serialno") return "serial";
   if(n==="kind"||n.indexOf("machine")===0) return "kind";
   if(n==="type"||n==="model"||n==="machinemodel") return "model";
@@ -26,6 +27,13 @@ function headerField(h){
   if(n==="checkby"||n==="checkedby") return "checkBy";
   if(n==="notes"||n==="note"||n==="remarks"||n==="remark"||n==="needs") return "notes";
   return null;
+}
+// Brand guessed from the model name, used when no brand was typed in.
+function inferBrand(model){
+  var s=String(model||"");
+  if(/koh\s*young|zenith|meister|neptune|aspire|\bky\s*-?\s*\d/i.test(s)) return "Koh Young";
+  if(/tamura/i.test(s)) return "Tamura";
+  return "";
 }
 function pad(n){ return (n<10?"0":"")+n; }
 function toDate(v){
@@ -95,6 +103,7 @@ function parseSheet(sheetName, rows){
     if(!m.customer) m.customer=sheetName.trim();
     if(!m.kind && m.model){ m.kind = /zenith|aoi|meister/i.test(m.model) ? "AOI" : /ky\s*\d|spi|aspire/i.test(m.model) ? "SPI" : m.model; }
     if(!m.kind && !m.serial && !m.model){ continue; }
+    if(!m.brand) m.brand=inferBrand(m.model);
     out.push(m);
   }
   if(!map) warnings.push("No header row with a Serial Number column was found.");

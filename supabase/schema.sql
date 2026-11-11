@@ -50,6 +50,7 @@ create table if not exists public.machines (
   id          uuid primary key default gen_random_uuid(),
   key         text not null unique,           -- customer + serial, used to match rows on Excel import
   customer    text not null,
+  brand       text not null default '',        -- machine maker, e.g. Koh Young, Tamura
   kind        text not null default '',
   model       text not null default '',
   line        text not null default '',
@@ -70,7 +71,11 @@ create table if not exists public.machines (
   updated_by  uuid references auth.users (id) on delete set null default auth.uid()
 );
 
+-- Databases created before the Brand column existed get it here
+alter table public.machines add column if not exists brand text not null default '';
+
 create index if not exists machines_customer_idx on public.machines (customer);
+create index if not exists machines_brand_idx on public.machines (brand);
 
 -- Keep updated_at / updated_by current on every edit
 create or replace function public.touch_machine()

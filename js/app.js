@@ -10,19 +10,23 @@
   function fromRow(r) {
     var m = { _id: r.id, key: r.key, updatedAt: r.updated_at };
     FIELDS.forEach(function (f) { var v = r[col(f)]; m[f] = v == null ? "" : String(v); });
+    if (!m.brand) m.brand = inferBrand(m.model);
     return m;
   }
   function toRow(m) {
     var r = { key: m.key };
     FIELDS.forEach(function (f) {
       var v = (m[f] || "").trim();
+      if (f === "brand" && !state.hasBrand) return;
       r[col(f)] = (f === "lastCal" || f === "nextCal") ? (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null) : v;
     });
     return r;
   }
 
   // ---------- state ----------
-  var state = { docs: new Map(), customer: "", kind: "", cal: "", q: "", sort: "customer", dir: 1,
+  var state = { docs: new Map(), q: "", sort: "customer", dir: 1, group: "customer",
+                sel: { customer: new Set(), brand: new Set(), kind: new Set(), cal: new Set() },
+                hidden: new Set(), shut: new Set(), shutFacet: {}, facetQ: {}, hasBrand: true,
                 role: null, user: null, ready: false, channel: null };
   var TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
   function isAdmin() { return state.role === "admin"; }
@@ -133,9 +137,14 @@
         return res.data.length === page ? next(from + page) : all;
       });
     }
-    return next(0).then(function (rows) {
+    // Databases set up before brands existed have no "brand" column yet (see supabase/brand.sql)
+    var probe = sb.from("machines").select("brand").limit(1).then(function (res) { state.hasBrand = !res.error; });
+    return probe.then(function () { return next(0); }).then(function (rows) {
       var m = new Map(); rows.forEach(function (r) { var o = fromRow(r); m.set(o._id, o); });
-      state.docs = m; state.ready = true; $("banner").hidden = true; render();
+      state.docs = m; state.ready = true;
+      $("banner").hidden = state.hasBrand || !isAdmin();
+      $("banner").textContent = "Brands are being guessed from the model name and can't be saved yet. To switch the Brand field on, run supabase/brand.sql once in the Supabase SQL Editor, then reload this page.";
+      render();
     }).catch(function (err) {
       state.ready = true; $("banner").hidden = false;
       $("banner").textContent = "Could not load machines: " + (err.message || err) + ". Reload the page to try again.";
@@ -168,16 +177,6 @@
   }
   function natural(a, b) { return String(a || "").localeCompare(String(b || ""), undefined, { numeric: true, sensitivity: "base" }); }
   function all() { return Array.from(state.docs.values()); }
-  function filtered() {
-    var q = state.q.trim().toLowerCase();
-    return all().filter(function (m) {
-      if (state.customer && m.customer !== state.customer) return false;
-      if (state.kind && (m.kind || "").toUpperCase() !== state.kind) return false;
-      if (state.cal && calInfo(m).status !== state.cal) return false;
-      if (q) { var hay = FIELDS.map(function (f) { return m[f] || ""; }).join(" ").toLowerCase(); if (hay.indexOf(q) < 0) return false; }
-      return true;
-    });
-  }
   function toast(t) { var el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(function () { el.hidden = true; }, 3500); }
   function errText(err) {
     var m = (err && (err.message || err.details)) || String(err);
@@ -186,79 +185,234 @@
     return m;
   }
 
+  // ---------- filters ----------
+  var FACETS = [{ k: "customer", label: "Customer" }, { k: "brand", label: "Brand" }, { k: "kind", label: "Kind" }, { k: "cal", label: "Calibration" }];
+  var CAL_ORDER = ["overdue", "due", "ok", "none"];
+  var CAL_LABEL = { overdue: "Overdue", due: "Due in 30 days", ok: "Up to date", none: "No date" };
+  var COLS = [["brand", "Brand"], ["line", "Line"], ["serial", "Serial number"], ["mfg", "Manufactured"], ["version", "Version"],
+              ["lastCal", "Last calibration"], ["nextCal", "Next calibration"], ["ip", "IP address"], ["pc", "PC specifications"]];
+  var NCOLS = 11;
+  // Suggestions offered when typing a brand or kind; anything else can be typed too.
+  var BRAND_HINTS = ["Koh Young", "Tamura"];
+  var KIND_HINTS = ["SPI", "AOI", "Review station", "Reflow oven", "Wave soldering", "Selective soldering", "Screen printer", "Mounter", "X-ray"];
+
+  function fval(m, k) {
+    if (k === "cal") return calInfo(m).status;
+    if (k === "kind") return (m.kind || "").trim().toUpperCase();
+    return (m[k] || "").trim();
+  }
+  var kindName = {};
+  function flabel(k, v) { return k === "cal" ? CAL_LABEL[v] : k === "kind" ? (kindName[v] || v || "Not set") : (v || "Not set"); }
+  function matches(m, skip) {
+    for (var i = 0; i < FACETS.length; i++) {
+      var k = FACETS[i].k, s = state.sel[k];
+      if (k !== skip && s.size && !s.has(fval(m, k))) return false;
+    }
+    var q = state.q.trim().toLowerCase();
+    if (q) { var hay = FIELDS.map(function (f) { return m[f] || ""; }).join(" ").toLowerCase(); if (hay.indexOf(q) < 0) return false; }
+    return true;
+  }
+  function filtered() { return all().filter(function (m) { return matches(m); }); }
+  function selCount() { return FACETS.reduce(function (n, f) { return n + state.sel[f.k].size; }, 0); }
+  function only(k) { var s = state.sel[k]; return s.size === 1 ? Array.from(s)[0] : ""; }
+  function uniq(list, f) { var o = {}; list.forEach(function (m) { var v = (m[f] || "").trim(); if (v) o[v] = 1; }); return Object.keys(o).sort(natural); }
+  function options(arr) { return arr.map(function (v) { return '<option value="' + esc(v) + '">'; }).join(""); }
+  function merge(a, b) { var seen = {}, out = []; a.concat(b).forEach(function (v) { var key = v.toLowerCase(); if (!seen[key]) { seen[key] = 1; out.push(v); } }); return out; }
+
+  // ---------- saved view options ----------
+  function savePrefs() { try { localStorage.setItem("tml.view", JSON.stringify({ group: state.group, hidden: Array.from(state.hidden) })); } catch (e) {} }
+  (function () {
+    try {
+      var p = JSON.parse(localStorage.getItem("tml.view") || "null");
+      if (p) { if (typeof p.group === "string") state.group = p.group; if (Array.isArray(p.hidden)) state.hidden = new Set(p.hidden); }
+    } catch (e) {}
+    $("fGroup").value = state.group;
+    $("colList").innerHTML = COLS.map(function (c) {
+      return '<label class="opt"><input type="checkbox" data-col="' + c[0] + '"' + (state.hidden.has(c[0]) ? '' : ' checked') + '><span class="t">' + c[1] + '</span></label>';
+    }).join("");
+  })();
+
   // ---------- render ----------
+  function renderFacets(list) {
+    var body = $("facetBody"), scroll = {};
+    body.querySelectorAll(".facet-list").forEach(function (el) { scroll[el.dataset.f] = el.scrollTop; });
+    var html = "";
+    FACETS.forEach(function (f) {
+      var k = f.k, sel = state.sel[k], counts = {}, vals = {};
+      list.forEach(function (m) { vals[fval(m, k)] = 1; });
+      list.forEach(function (m) { if (matches(m, k)) { var v = fval(m, k); counts[v] = (counts[v] || 0) + 1; } });
+      var keys = k === "cal" ? CAL_ORDER.filter(function (v) { return vals[v]; })
+                             : Object.keys(vals).sort(function (a, b) { return (a === "") - (b === "") || natural(a, b); });
+      html += '<details class="facet" data-f="' + k + '"' + (state.shutFacet[k] ? '' : ' open') + '><summary><span>' + f.label +
+        (sel.size ? '<span class="sel">' + sel.size + ' selected</span>' : '') + '</span></summary>';
+      if (keys.length > 8) html += '<input class="facet-q" type="search" data-f="' + k + '" placeholder="Find ' + f.label.toLowerCase() + '…" aria-label="Find ' + f.label.toLowerCase() + '" value="' + esc(state.facetQ[k] || "") + '">';
+      html += '<div class="facet-list" data-f="' + k + '">';
+      keys.forEach(function (v) {
+        var n = counts[v] || 0;
+        html += '<label class="opt' + (n ? '' : ' zero') + '"><input type="checkbox" data-f="' + k + '" data-v="' + esc(v) + '"' + (sel.has(v) ? ' checked' : '') + '>' +
+          '<span class="t" title="' + esc(flabel(k, v)) + '">' + esc(flabel(k, v)) + '</span><span class="n">' + n + '</span></label>';
+      });
+      html += '</div></details>';
+    });
+    body.innerHTML = html;
+    body.querySelectorAll(".facet-list").forEach(function (el) { if (scroll[el.dataset.f]) el.scrollTop = scroll[el.dataset.f]; });
+    body.querySelectorAll(".facet-q").forEach(narrowFacet);
+  }
+  function narrowFacet(input) {
+    var q = input.value.trim().toLowerCase();
+    input.parentNode.querySelectorAll(".opt").forEach(function (o) { o.hidden = !!q && o.textContent.toLowerCase().indexOf(q) < 0; });
+  }
+  function renderChips() {
+    var h = "";
+    FACETS.forEach(function (f) {
+      state.sel[f.k].forEach(function (v) { h += '<button class="chip" type="button" data-f="' + f.k + '" data-v="' + esc(v) + '" title="Remove this filter"><small>' + f.label + '</small>' + esc(flabel(f.k, v)) + '<b aria-hidden="true">×</b></button>'; });
+    });
+    if (state.q.trim()) h += '<button class="chip" type="button" data-f="q" title="Clear the search"><small>Search</small>' + esc(state.q.trim()) + '<b aria-hidden="true">×</b></button>';
+    $("chips").innerHTML = h; $("chips").hidden = !h;
+    var n = selCount();
+    $("btnClear").hidden = !n && !state.q.trim();
+    $("fCount").hidden = !n; $("fCount").textContent = n;
+  }
+  function rowHtml(m) {
+    var ci = calInfo(m);
+    var pc = [m.os, m.pcModel].filter(Boolean).join(" · "), pc2 = [m.memory, m.vga].filter(Boolean).join(" · ");
+    var dash = '<span class="muted">—</span>';
+    return '<tr class="row" data-id="' + esc(m._id) + '" tabindex="0">' +
+      (state.group === "customer" ? '<td class="c-customer">' + esc(m.location) + '</td>'
+        : '<td class="c-customer"><div class="cust">' + esc(m.customer) + '</div>' + (m.location ? '<div class="sub">' + esc(m.location) + '</div>' : '') + '</td>') +
+      '<td class="c-brand">' + (m.brand ? esc(m.brand) : dash) + '</td>' +
+      '<td class="c-kind"><span class="kind">' + esc(m.kind || "?") + '</span>' + (m.model ? '<div class="model">' + esc(m.model) + '</div>' : '') + '</td>' +
+      '<td class="c-line mono">' + esc(m.line) + '</td>' +
+      '<td class="c-serial mono">' + (m.serial ? esc(m.serial) : dash) + '</td>' +
+      '<td class="c-mfg nw">' + esc(fmtMonth(m.mfg)) + '</td>' +
+      '<td class="c-version mono">' + esc(m.version) + '</td>' +
+      '<td class="c-lastCal nw">' + esc(fmtDate(m.lastCal)) + '</td>' +
+      '<td class="c-nextCal nw">' + (ci.next ? '<div>' + esc(fmtDate(m.nextCal || iso(ci.next))) + (ci.est ? ' <span class="sub">(est.)</span>' : '') + '</div>' : '') +
+        '<span class="pill ' + PILL[ci.status] + '">' + esc(ci.label) + '</span></td>' +
+      '<td class="c-ip mono">' + esc(m.ip) + '</td>' +
+      '<td class="c-pc">' + esc(pc) + (pc2 ? '<div class="sub">' + esc(pc2) + '</div>' : '') + (m.notes ? '<div class="note">' + esc(m.notes) + '</div>' : '') + '</td>' +
+      '</tr>';
+  }
+  var PILL = { overdue: "bad", due: "warn", ok: "ok", none: "none" };
   function render() {
     var list = all();
-    var scope = list.filter(function (m) { return !state.customer || m.customer === state.customer; });
-    var c = { overdue: 0, due: 0, none: 0 };
-    scope.forEach(function (m) { var s = calInfo(m).status; if (c[s] != null) c[s]++; });
-    $("sTotal").textContent = scope.length; $("sOver").textContent = c.overdue; $("sDue").textContent = c.due; $("sNone").textContent = c.none;
-    document.querySelectorAll(".stat").forEach(function (b) { b.classList.toggle("active", (b.dataset.cal || "") === state.cal); });
+    // drop selections that no longer exist in the data
+    ["customer", "brand", "kind"].forEach(function (k) {
+      var have = {}; list.forEach(function (m) { have[fval(m, k)] = 1; });
+      state.sel[k].forEach(function (v) { if (!have[v]) state.sel[k].delete(v); });
+    });
 
-    var custs = {}; list.forEach(function (m) { custs[m.customer] = (custs[m.customer] || 0) + 1; });
-    var names = Object.keys(custs).sort(natural);
-    if (state.customer && !custs[state.customer]) state.customer = "";
-    var th = '<button class="tab" type="button" data-c="" aria-pressed="' + (!state.customer) + '">All customers <span class="n">' + list.length + '</span></button>';
-    names.forEach(function (n) { th += '<button class="tab" type="button" data-c="' + esc(n) + '" aria-pressed="' + (state.customer === n) + '">' + esc(n) + ' <span class="n">' + custs[n] + '</span></button>'; });
-    $("tabs").innerHTML = th;
-    $("custList").innerHTML = names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join("");
+    kindName = {}; list.forEach(function (m) { var k = fval(m, "kind"); if (k && !kindName[k]) kindName[k] = m.kind.trim(); });
 
-    var kinds = {}; list.forEach(function (m) { if (m.kind) kinds[m.kind.toUpperCase()] = 1; });
-    var ks = Object.keys(kinds).sort(natural);
-    $("fKind").innerHTML = '<option value="">All kinds</option>' + ks.map(function (k) { return '<option' + (k === state.kind ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join("");
-    $("kindList").innerHTML = ks.map(function (k) { return '<option value="' + esc(k) + '">'; }).join("");
-    var oss = {}; list.forEach(function (m) { if (m.os) oss[m.os] = 1; });
-    $("osList").innerHTML = Object.keys(oss).sort().map(function (k) { return '<option value="' + esc(k) + '">'; }).join("");
+    var scope = list.filter(function (m) { return matches(m, "cal"); });
+    var c = { overdue: 0, due: 0, ok: 0, none: 0 };
+    scope.forEach(function (m) { c[calInfo(m).status]++; });
+    $("sTotal").textContent = scope.length; $("sOver").textContent = c.overdue; $("sDue").textContent = c.due; $("sOk").textContent = c.ok; $("sNone").textContent = c.none;
+    $("sTotalH").textContent = scope.length === list.length ? "all machines" : "of " + list.length + " in total";
+    document.querySelectorAll(".stat").forEach(function (b) {
+      var v = b.dataset.cal || ""; b.classList.toggle("active", v ? only("cal") === v : false);
+    });
 
-    var rows = filtered(), key = state.sort, dir = state.dir;
+    var custs = uniq(list, "customer"), brands = uniq(list, "brand"), kinds = uniq(list, "kind");
+    $("lede").textContent = state.ready && list.length ? list.length + " machines · " + custs.length + (custs.length === 1 ? " customer · " : " customers · ") +
+      brands.length + (brands.length === 1 ? " brand · " : " brands · ") + Object.keys(kinds.reduce(function (o, v) { o[v.toUpperCase()] = 1; return o; }, {})).length + " kinds" : "";
+    $("custList").innerHTML = options(custs);
+    $("brandList").innerHTML = options(merge(brands, BRAND_HINTS));
+    $("kindList").innerHTML = options(merge(kinds, KIND_HINTS));
+    $("modelList").innerHTML = options(uniq(list, "model"));
+    $("osList").innerHTML = options(uniq(list, "os"));
+
+    renderFacets(list); renderChips();
+
+    var rows = filtered(), key = state.sort, dir = state.dir, g = state.group;
+    function gkey(m) { return fval(m, g); }
     rows.sort(function (a, b) {
+      if (g) {
+        var ga = gkey(a), gb = gkey(b);
+        var gr = g === "cal" ? CAL_ORDER.indexOf(ga) - CAL_ORDER.indexOf(gb) : ((ga === "") - (gb === "") || natural(ga, gb));
+        if (gr) return gr;
+      }
       var r;
       if (key === "nextCal") { var ia = calInfo(a), ib = calInfo(b); r = (ia.next ? ia.next.getTime() : 9e15) - (ib.next ? ib.next.getTime() : 9e15); }
+      else if (key === "customer" && g === "customer") r = natural(a.location, b.location);
       else r = natural(a[key], b[key]);
-      if (r === 0) r = natural(a.customer, b.customer) || natural(a.kind, b.kind) || natural(a.line, b.line);
+      if (r === 0) return natural(a.customer, b.customer) || natural(a.kind, b.kind) || natural(a.line, b.line);
       return r * dir;
     });
     document.querySelectorAll("th[data-sort]").forEach(function (h) {
-      var base = h.textContent.replace(/[ ▲▼]+$/, "");
+      var base = h.dataset.sort === "customer" ? (g === "customer" ? "Location" : "Customer") : h.textContent.replace(/[ ▲▼]+$/, "");
       h.innerHTML = esc(base) + (h.dataset.sort === key ? ' <span class="arrow">' + (dir > 0 ? "▲" : "▼") + '</span>' : "");
       h.setAttribute("aria-sort", h.dataset.sort === key ? (dir > 0 ? "ascending" : "descending") : "none");
     });
+    var noLoc = g === "customer" && !rows.some(function (m) { return m.location; });
+    $("grid").className = Array.from(state.hidden).map(function (h) { return "h-" + h; }).concat(noLoc ? ["h-customer"] : []).join(" ");
+
     var html = "";
-    rows.forEach(function (m) {
-      var ci = calInfo(m);
-      var pc = [m.os, m.pcModel].filter(Boolean).join(" · "), pc2 = [m.memory, m.vga].filter(Boolean).join(" · ");
-      html += '<tr data-id="' + esc(m._id) + '" tabindex="0">' +
-        '<td>' + esc(m.customer) + (m.location ? '<div class="sub">' + esc(m.location) + '</div>' : '') + '</td>' +
-        '<td><span class="kind">' + esc(m.kind) + '</span>' + (m.model ? '<div class="sub">' + esc(m.model) + '</div>' : '') + '</td>' +
-        '<td class="mono">' + esc(m.line) + '</td>' +
-        '<td class="mono">' + (m.serial ? esc(m.serial) : '<span class="muted">—</span>') + '</td>' +
-        '<td class="nw">' + esc(fmtMonth(m.mfg)) + '</td>' +
-        '<td class="mono">' + esc(m.version) + '</td>' +
-        '<td class="nw">' + esc(fmtDate(m.lastCal)) + '</td>' +
-        '<td class="nw">' + (ci.next ? '<div>' + esc(fmtDate(m.nextCal || iso(ci.next))) + (ci.est ? ' <span class="sub">(est.)</span>' : '') + '</div>' : '') +
-          '<span class="pill ' + ({ overdue: "bad", due: "warn", ok: "ok", none: "none" }[ci.status]) + '">' + esc(ci.label) + '</span></td>' +
-        '<td class="mono">' + esc(m.ip) + '</td>' +
-        '<td class="pc">' + esc(pc) + (pc2 ? '<div class="sub">' + esc(pc2) + '</div>' : '') + (m.notes ? '<div class="sub" style="color:var(--copper)">' + esc(m.notes) + '</div>' : '') + '</td>' +
-        '</tr>';
-    });
+    if (!g) rows.forEach(function (m) { html += rowHtml(m); });
+    else {
+      var groups = [], cur = null;
+      rows.forEach(function (m) { var v = gkey(m); if (!cur || cur.v !== v) { cur = { v: v, items: [] }; groups.push(cur); } cur.items.push(m); });
+      groups.forEach(function (gr) {
+        var gid = g + "|" + gr.v, shut = state.shut.has(gid), s = { overdue: 0, due: 0 };
+        gr.items.forEach(function (m) { var st = calInfo(m).status; if (s[st] != null) s[st]++; });
+        html += '<tr class="grp' + (shut ? ' shut' : '') + '" data-g="' + esc(gid) + '" tabindex="0" aria-expanded="' + !shut + '"><td colspan="' + NCOLS + '"><div class="grp-in"><span class="car"></span><strong>' + esc(flabel(g, gr.v)) + '</strong>' +
+          '<span class="n">' + gr.items.length + (gr.items.length === 1 ? ' machine' : ' machines') + '</span>' +
+          (g !== "cal" && s.overdue ? '<span class="pill bad">' + s.overdue + ' overdue</span>' : '') +
+          (g !== "cal" && s.due ? '<span class="pill warn">' + s.due + ' due soon</span>' : '') + '</div></td></tr>';
+        if (!shut) gr.items.forEach(function (m) { html += rowHtml(m); });
+      });
+    }
     $("rows").innerHTML = html;
-    $("count").textContent = rows.length + " of " + list.length + " shown";
+    $("count").textContent = rows.length === list.length ? list.length + " machines" : rows.length + " of " + list.length + " machines";
     var empty = $("empty");
     if (!state.ready) { empty.hidden = false; $("emptyTitle").textContent = "Loading machines…"; $("emptyText").textContent = "The machine list appears here once it loads."; }
     else if (!list.length) { empty.hidden = false; $("emptyTitle").textContent = "No machines yet"; $("emptyText").textContent = isAdmin() ? "Upload your Excel machine list or add a machine by hand to start." : "Nothing has been added yet."; }
-    else if (!rows.length) { empty.hidden = false; $("emptyTitle").textContent = "No machines match"; $("emptyText").textContent = "Clear the search or pick another filter."; }
+    else if (!rows.length) { empty.hidden = false; $("emptyTitle").textContent = "No machines match"; $("emptyText").textContent = "Clear the search or remove a filter."; }
     else empty.hidden = true;
   }
 
   // ---------- list events ----------
-  $("tabs").addEventListener("click", function (e) { var b = e.target.closest(".tab"); if (!b) return; state.customer = b.dataset.c; render(); });
-  document.querySelectorAll(".stat").forEach(function (b) { b.addEventListener("click", function () { state.cal = b.dataset.cal || ""; $("fCal").value = state.cal; render(); }); });
-  $("fKind").addEventListener("change", function () { state.kind = this.value; render(); });
-  $("fCal").addEventListener("change", function () { state.cal = this.value; render(); });
+  $("facetBody").addEventListener("change", function (e) {
+    var b = e.target; if (b.type !== "checkbox" || !b.dataset.f) return;
+    var s = state.sel[b.dataset.f]; if (b.checked) s.add(b.dataset.v); else s.delete(b.dataset.v);
+    render();
+  });
+  $("facetBody").addEventListener("input", function (e) { if (e.target.classList.contains("facet-q")) { state.facetQ[e.target.dataset.f] = e.target.value; narrowFacet(e.target); } });
+  $("facetBody").addEventListener("toggle", function (e) { var d = e.target; if (d.dataset && d.dataset.f) state.shutFacet[d.dataset.f] = !d.open; }, true);
+  function clearAll() { FACETS.forEach(function (f) { state.sel[f.k].clear(); }); state.q = ""; $("q").value = ""; render(); }
+  $("btnClear").addEventListener("click", clearAll);
+  $("chips").addEventListener("click", function (e) {
+    var b = e.target.closest(".chip"); if (!b) return;
+    if (b.dataset.f === "q") { state.q = ""; $("q").value = ""; } else state.sel[b.dataset.f].delete(b.dataset.v);
+    render();
+  });
+  document.querySelectorAll(".stat").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var v = b.dataset.cal || "", was = only("cal") === v;
+      state.sel.cal.clear(); if (v && !was) state.sel.cal.add(v);
+      render();
+    });
+  });
+  $("fGroup").addEventListener("change", function () { state.group = this.value; savePrefs(); render(); });
+  $("colList").addEventListener("change", function (e) {
+    var k = e.target.dataset.col; if (!k) return;
+    if (e.target.checked) state.hidden.delete(k); else state.hidden.add(k);
+    savePrefs(); render();
+  });
+  document.addEventListener("click", function (e) { var m = $("colMenu"); if (m.open && !m.contains(e.target)) m.open = false; });
   var qt; $("q").addEventListener("input", function () { var v = this.value; clearTimeout(qt); qt = setTimeout(function () { state.q = v; render(); }, 120); });
-  document.querySelector("thead").addEventListener("click", function (e) { var h = e.target.closest("th[data-sort]"); if (!h) return; if (state.sort === h.dataset.sort) state.dir *= -1; else { state.sort = h.dataset.sort; state.dir = 1; } render(); });
-  $("rows").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-id]"); if (tr) openEdit(tr.dataset.id); });
-  $("rows").addEventListener("keydown", function (e) { if (e.key === "Enter") { var tr = e.target.closest("tr[data-id]"); if (tr) openEdit(tr.dataset.id); } });
+  document.querySelector("#grid thead").addEventListener("click", function (e) { var h = e.target.closest("th[data-sort]"); if (!h) return; if (state.sort === h.dataset.sort) state.dir *= -1; else { state.sort = h.dataset.sort; state.dir = 1; } render(); });
+  function rowAction(e) {
+    var gr = e.target.closest("tr.grp");
+    if (gr) { var id = gr.dataset.g; if (state.shut.has(id)) state.shut.delete(id); else state.shut.add(id); render(); return; }
+    var tr = e.target.closest("tr[data-id]"); if (tr) openEdit(tr.dataset.id);
+  }
+  $("rows").addEventListener("click", rowAction);
+  $("rows").addEventListener("keydown", function (e) { if (e.key === "Enter") rowAction(e); });
+  function drawer(open) { $("facets").classList.toggle("open", open); $("scrim").hidden = !open; }
+  $("btnFacets").addEventListener("click", function () { drawer(true); });
+  $("btnFacetsClose").addEventListener("click", function () { drawer(false); });
+  $("scrim").addEventListener("click", function () { drawer(false); });
   document.querySelectorAll("dialog").forEach(function (d) {
     d.addEventListener("click", function (e) { if (e.target.closest("[data-close]") || e.target === d) d.close(); });
   });
@@ -268,15 +422,17 @@
   function openEdit(id) {
     var m = id ? state.docs.get(id) : null; editing = m;
     var canEdit = isAdmin();
-    $("editTitle").textContent = m ? (m.kind + " " + (m.serial || ("line " + m.line))) : "Add machine";
-    FIELDS.forEach(function (f) { var el = $("e_" + f); el.value = m ? (m[f] || "") : (f === "customer" ? state.customer : ""); el.disabled = !canEdit; });
+    $("editTitle").textContent = m ? ([m.brand, m.model || m.kind].filter(Boolean).join(" ") + " · " + (m.serial || ("line " + m.line))) : "Add machine";
+    var preset = { customer: only("customer"), brand: only("brand"), kind: only("kind") };
+    FIELDS.forEach(function (f) { var el = $("e_" + f); el.value = m ? (m[f] || "") : (preset[f] || ""); el.disabled = !canEdit; });
+    if (!state.hasBrand) { $("e_brand").disabled = true; $("e_brand").title = "Run supabase/brand.sql in Supabase to switch this field on"; }
     var mfg = $("e_mfg");
     if (m && m.mfg && !/^\d{4}-\d{2}$/.test(m.mfg)) { mfg.type = "text"; mfg.value = m.mfg; } else { mfg.type = "month"; mfg.value = m ? (m.mfg || "") : ""; }
     $("editMeta").textContent = m && m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") : "";
     $("btnSave").hidden = !canEdit;
     $("delArea").innerHTML = (m && canEdit) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
     $("dlgEdit").showModal();
-    if (!m && canEdit) setTimeout(function () { $(state.customer ? "e_kind" : "e_customer").focus(); }, 30);
+    if (!m && canEdit) setTimeout(function () { $(preset.customer ? "e_kind" : "e_customer").focus(); }, 30);
   }
   $("btnAdd").addEventListener("click", function () { openEdit(null); });
   $("delArea").addEventListener("click", function (e) {
@@ -429,12 +585,12 @@
     var rows = filtered(); if (!rows.length) { toast("Nothing to export with the current filters."); return; }
     var by = {};
     rows.sort(function (a, b) { return natural(a.kind, b.kind) || natural(a.line, b.line); }).forEach(function (m) { (by[m.customer] = by[m.customer] || []).push(m); });
-    XLSX.writeFile(buildWorkbook(by), "Tamura_Machine_List_" + (state.customer ? state.customer.replace(/\W+/g, "_") + "_" : "") + iso(new Date()) + ".xlsx");
+    XLSX.writeFile(buildWorkbook(by), "Tamura_Machine_List_" + (only("customer") ? only("customer").replace(/\W+/g, "_") + "_" : "") + iso(new Date()) + ".xlsx");
   });
   $("btnTemplate").addEventListener("click", function () {
     if (typeof XLSX === "undefined") { toast("The Excel library did not load. Reload the page."); return; }
     var ex = {}; FIELDS.forEach(function (f) { ex[f] = ""; });
-    Object.assign(ex, { customer: "New Customer", kind: "SPI", model: "KY8030 Nova", line: "1", serial: "SV-SL-00000", mfg: "2026-01", version: "5.2.3.0",
+    Object.assign(ex, { customer: "New Customer", brand: "Koh Young", kind: "SPI", model: "KY8030 Nova", line: "1", serial: "SV-SL-00000", mfg: "2026-01", version: "5.2.3.0",
       lastCal: "2026-01-15", nextCal: "2027-01-15", ip: "192.168.0.10", os: "Windows 10 Enterprise LTSC 64-bit", pcModel: "Dell OptiPlex XE4",
       memory: "32768 MB", vga: "NVIDIA T400", notes: "Example row, replace or delete" });
     XLSX.writeFile(buildWorkbook({ "New Customer": [ex] }), "Machine_List_Template.xlsx");
