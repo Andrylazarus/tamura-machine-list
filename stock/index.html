@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tamura Stock</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../styles.css?v=20261111n">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
+<script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="../js/config.js?v=20261111n"></script>
+</head>
+<body>
+
+<!-- ================= Login ================= -->
+<section class="auth" id="viewLogin" hidden>
+  <div class="auth-card">
+    <div class="brand"><span class="mark lg" aria-hidden="true">T</span><span class="eyebrow">Service portal</span><h1>Tamura Stock</h1></div>
+    <form id="loginForm">
+      <label>Email<input id="loginEmail" type="email" autocomplete="username" required></label>
+      <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+      <div id="loginMsg" class="msg" hidden></div>
+      <button class="btn primary" type="submit" id="btnLogin">Log in</button>
+    </form>
+    <p class="help">Use the same account as the Machine List. First time, or forgot your password? <a href="../">Set it on the Machine List page</a>.</p>
+  </div>
+</section>
+
+<section class="auth" id="viewPending" hidden>
+  <div class="auth-card">
+    <h1>Waiting for approval</h1>
+    <p class="help">You are logged in as <strong id="pendingEmail"></strong>, but an administrator still has to give you access.</p>
+    <div class="actions"><button class="btn" type="button" data-logout>Log out</button></div>
+  </div>
+</section>
+
+<!-- ================= Stock ================= -->
+<div id="viewApp" hidden>
+  <header class="appbar">
+    <div class="appbar-in">
+      <a class="logo" href="../" aria-label="Tamura service portal"><span class="mark" aria-hidden="true">T</span><span class="logo-t"><b>Tamura</b><i>Service portal</i></span></a>
+      <nav class="mainnav" aria-label="Sections">
+        <a href="../">Machines</a>
+        <a href="./" aria-current="page">Stock</a>
+        <a href="../calibration/" data-owner hidden>Calibration report</a>
+        <a href="../transport/" data-owner hidden>Transport claim</a>
+        <a href="../tasks/">Team tasks<span class="beta" title="Still being tested and may change">Beta</span></a>
+        <a href="../schedule/" data-owner hidden>Schedule</a>
+      </nav>
+      <div class="account">
+        <span class="who"><span id="userEmail"></span><span class="role" id="userRole"></span></span>
+        <button class="navbtn" type="button" data-logout>Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="pagehead">
+      <div class="brand">
+        <span class="eyebrow">Warehouse</span>
+        <h1>Tamura Stock</h1>
+        <p class="lede" id="lede"></p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btnExport" type="button" title="Download the items shown below as Excel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg><span class="l">Export Excel</span></button>
+        <button class="btn primary" id="btnAdd" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
+      </div>
+    </div>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <section class="summary four" aria-label="Stock summary">
+      <button class="stat" type="button" data-st=""><span class="k">Items</span><span class="v" id="sItems">–</span><span class="h" id="sItemsH">in this selection</span></button>
+      <button class="stat ok" type="button" data-st="ok"><span class="k"><span class="dot"></span>In stock</span><span class="v" id="sOk">–</span><span class="h">enough on hand</span></button>
+      <button class="stat warn" type="button" data-st="low"><span class="k"><span class="dot"></span>Low stock</span><span class="v" id="sLow">–</span><span class="h">at or below the minimum</span></button>
+      <button class="stat bad" type="button" data-st="out"><span class="k"><span class="dot"></span>Out of stock</span><span class="v" id="sOut">–</span><span class="h">nothing left</span></button>
+    </section>
+
+    <div class="layout">
+      <aside class="facets" id="facets" aria-label="Filters">
+        <div class="facets-head"><strong>Filters</strong><button class="linkbtn" type="button" id="btnClear" hidden>Clear all</button><button class="x only-m" type="button" id="btnFacetsClose" aria-label="Close filters">×</button></div>
+        <div id="facetBody"></div>
+      </aside>
+
+      <main class="main">
+        <div class="toolbar">
+          <button class="btn only-m" type="button" id="btnFacets">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filters<span class="badge" id="fCount" hidden></span></button>
+          <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" id="q" placeholder="Search item, part number, model, location…" aria-label="Search"></div>
+          <label class="inline">Group by
+            <select id="fGroup" aria-label="Group rows by">
+              <option value="brand">Brand</option>
+              <option value="model">Machine model</option>
+              <option value="kind">Type</option>
+              <option value="location">Location</option>
+              <option value="">No grouping</option>
+            </select></label>
+          <span class="count" id="count"></span>
+        </div>
+        <div class="chips" id="chips" hidden></div>
+
+        <div class="tablebox">
+          <table id="grid" class="stock">
+            <thead><tr>
+              <th data-sort="name">Item</th>
+              <th data-sort="brand">Brand</th>
+              <th data-sort="model">Machine model</th>
+              <th data-sort="partNo">Part / serial no.</th>
+              <th data-sort="qty">In stock</th>
+              <th data-sort="location">Location</th>
+              <th data-sort="condition">Condition</th>
+              <th data-sort="notes">Notes</th>
+              <th data-sort="by">Added by</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div class="empty" id="empty" hidden>
+            <strong id="emptyTitle">Loading stock…</strong>
+            <span id="emptyText">The stock list appears here once it loads.</span>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div class="scrim" id="scrim" hidden></div>
+</div>
+
+<!-- Add / edit item -->
+<dialog id="dlgEdit" aria-labelledby="editTitle">
+  <form class="dlg" id="editForm" method="dialog">
+    <div class="dlg-head"><h2 id="editTitle">Add item</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <fieldset><legend>Item</legend>
+        <label><span class="req">Type</span>
+          <select id="e_kind"><option value="part">Spare part</option><option value="machine">Machine</option></select></label>
+        <label class="span2"><span class="req" id="lName">Part name</span><input id="e_name" required maxlength="160" autocomplete="off" placeholder="e.g. Projection lamp, Z-axis motor"></label>
+        <label>Brand<input id="e_brand" list="brandList" autocomplete="off" maxlength="80" placeholder="Koh Young, Tamura…"></label>
+        <label><span id="lModel">For machine model</span><input id="e_model" list="modelList" autocomplete="off" maxlength="120" placeholder="e.g. Zenith Alpha"></label>
+        <label><span id="lPartNo">Part number</span><input id="e_partNo" class="mono" maxlength="80" autocomplete="off"></label>
+      </fieldset>
+      <fieldset><legend>Stock</legend>
+        <label>Quantity in stock
+          <span class="stepper"><button class="btn" type="button" id="qMinus" aria-label="One less">−</button><input id="e_qty" type="number" min="0" step="1" inputmode="numeric" value="0"><button class="btn" type="button" id="qPlus" aria-label="One more">+</button></span></label>
+        <label>Unit<input id="e_unit" list="unitList" maxlength="20" value="pcs" autocomplete="off"></label>
+        <label>Minimum to keep<input id="e_minQty" type="number" min="0" step="1" inputmode="numeric" value="0" title="At or below this number the item shows as low stock. 0 switches the warning off."></label>
+        <label>Location<input id="e_location" list="locList" maxlength="120" autocomplete="off" placeholder="Warehouse, shelf…"></label>
+        <label>Condition<input id="e_condition" list="condList" maxlength="40" autocomplete="off" placeholder="New, Used…"></label>
+      </fieldset>
+      <fieldset><legend>Notes</legend>
+        <label class="wide">Notes<textarea id="e_notes" rows="2" maxlength="2000" placeholder="e.g. Reserved for customer, supplier, price reference"></textarea></label>
+      </fieldset>
+      <p class="help" id="editMeta"></p>
+    </div>
+    <div class="dlg-foot">
+      <div id="delArea"></div>
+      <div class="r">
+        <button class="btn" type="button" data-close>Close</button>
+        <button class="btn primary" type="submit" id="btnSave">Save item</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="brandList"></datalist><datalist id="modelList"></datalist><datalist id="locList"></datalist>
+<datalist id="unitList"><option value="pcs"><option value="unit"><option value="set"><option value="box"><option value="roll"><option value="m"><option value="L"></datalist>
+<datalist id="condList"><option value="New"><option value="Used"><option value="Refurbished"><option value="Demo unit"><option value="Faulty"></datalist>
+<div class="toast" id="toast" hidden></div>
+
+<script src="stock.js?v=20261111n"></script>
+</body>
+</html>

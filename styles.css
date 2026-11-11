@@ -85,6 +85,7 @@ tbody tr.row.pending{background:color-mix(in srgb,var(--accent-soft) 45%,var(--s
 
 /* ---------- Summary cards ---------- */
 .summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.summary.four{grid-template-columns:repeat(4,minmax(0,1fr))}
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:2px;text-align:left;color:inherit;box-shadow:var(--shadow-1);position:relative;overflow:hidden}
 .stat:hover{border-color:var(--accent)}
 .stat .k{font-size:12px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:7px}
@@ -181,6 +182,14 @@ fieldset{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(a
 legend{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;padding:0}
 label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500}
 label.wide,.wide{grid-column:1/-1}
+label.span2{grid-column:span 2}
+.stepper{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px}
+.stepper .btn{padding:8px 13px;font-weight:700}
+.stepper input{text-align:center}
+.qty{font-size:15px;font-variant-numeric:tabular-nums}
+table.stock{min-width:1040px}
+table.stock td{vertical-align:middle}
+table.stock .c-kind{min-width:230px}
 .disks{display:flex;flex-direction:column;gap:6px}
 .disks .lbl{font-size:12px;color:var(--muted);font-weight:500}
 #diskRows{display:flex;flex-direction:column;gap:8px}
@@ -216,7 +225,7 @@ label.wide,.wide{grid-column:1/-1}
 
 /* ---------- Smaller screens ---------- */
 .scrim{position:fixed;inset:0;background:rgba(10,15,24,.5);z-index:29}
-@media (max-width:1180px){.summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:1180px){.summary{grid-template-columns:repeat(3,minmax(0,1fr))}.summary.four{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:980px){
   .only-m{display:inline-flex!important}
   .layout{grid-template-columns:minmax(0,1fr)}
@@ -279,6 +288,10 @@ label.wide,.wide{grid-column:1/-1}
   tr.row .c-kind .model{margin:0;font-size:16px}
   tr.row .c-customer{grid-column:1/-1;order:-2}
   tr.row .c-nextCal{order:-1}
+  tr.row .c-qty{order:-1;grid-column:1/-1}
+  table.stock{min-width:0}
+  .summary.four .stat:first-child{grid-column:auto;flex-direction:column;align-items:stretch;gap:2px}
+  label.span2{grid-column:1/-1}
   tr.row .c-lastCal{order:-1}
   tr.row .c-pc{grid-column:1/-1;max-width:none;min-width:0}
   tr.row .c-nextCal .pill{margin-top:2px}
