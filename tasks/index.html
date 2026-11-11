@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="board.css?v=202611101655">
+<link rel="stylesheet" href="board.css?v=20261111k">
 </head>
 <body data-page="tasks">
 <div class="gate" id="gate">
@@ -135,16 +135,16 @@
     <datalist id="customerList"></datalist>
 
     <section class="follow" id="followSec">
-      <h3>Follow-up notes</h3>
-      <div class="add-note">
-        <textarea class="field" id="noteText" maxlength="2000" aria-label="Add an update" placeholder="e.g. Called customer, visit confirmed for Thursday 09:00"></textarea>
-        <div><button class="btn" type="button" id="noteBtn">Post update</button></div>
-      </div>
+      <h3>Discussion <span class="thread-n" id="threadCount"></span></h3>
       <div class="thread" id="thread"></div>
+      <div class="add-note">
+        <textarea class="field" id="noteText" maxlength="2000" aria-label="Write a message" placeholder="Write a message or follow-up, e.g. Called customer, visit confirmed for Thursday 09:00"></textarea>
+        <div class="add-note-foot"><span class="hint">Everyone on the team can read and reply. Ctrl+Enter to post.</span><button class="btn primary" type="button" id="noteBtn">Post message</button></div>
+      </div>
     </section>
     <div class="meta-line" id="metaLine"></div>
     <div class="confirm" id="confirmDel" hidden>
-      <span>Delete this for everyone, including its notes?</span>
+      <span>Delete this for everyone, including its discussion?</span>
       <button class="btn danger" type="button" id="delYes">Delete</button>
       <button class="btn" type="button" id="delNo">Keep</button>
     </div>
@@ -160,6 +160,6 @@
 <button class="fab" id="fab" type="button" aria-label="New task">+ New task</button>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="board.js?v=20261111j"></script>
+<script src="board.js?v=20261111k"></script>
 </body>
 </html>

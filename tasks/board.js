@@ -71,7 +71,7 @@
     const local = email.split("@")[0].replace(/[._-]+/g, " ").replace(/\d+/g, " ").trim();
     return (local || email).split(/\s+/).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
   }
-  function personName(id) { if (!id) return ""; const m = state.members.find(x => x.id === id); return m ? displayName(m.email) : "Former member"; }
+  function personName(id) { if (!id) return ""; if (state.names && state.names[id]) return state.names[id]; const m = state.members.find(x => x.id === id); return m ? displayName(m.email) : "Former member"; }
   function initials(s) { return (s || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(""); }
   function assigneeName(t) { return t.assignee ? personName(t.assignee) : (t.assignee_label || ""); }
   function whoNode(t) {
@@ -137,7 +137,7 @@
       h("div", { class: "row" }, h("span", { class: "code", text: codeOf(t) }), h("span", { class: "chip", text: PRI_LABEL[t.priority] || "Medium" })),
       h("div", { class: "t", text: t.title }),
       h("div", { class: "chips" }, dueChip(t), t.category ? h("span", { class: "chip", text: t.category }) : null, t.customer ? h("span", { class: "chip", text: t.customer }) : null),
-      h("div", { class: "row" }, whoNode(t), n ? h("span", { class: "notes-n", text: n + (n === 1 ? " update" : " updates") }) : null)
+      h("div", { class: "row" }, whoNode(t), n ? h("span", { class: "notes-n", title: "Messages in the discussion", text: "\u{1F4AC} " + n }) : null)
     );
     el.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; });
     return el;
@@ -289,13 +289,28 @@
     if (!t || !window.matchMedia("(max-width: 700px)").matches) setTimeout(() => $("fTitle").focus(), 50);
   }
   function closeDrawer() { state.editing = null; $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); $("scrim").classList.remove("open"); }
+  // Discussion on one task: oldest message first, like a forum thread, with the reply box underneath
   function renderThread() {
-    const notes = (state.notes[state.editing] || []).slice().sort((a, b) => b.created_at < a.created_at ? -1 : 1);
-    $("thread").replaceChildren(...(notes.length ? notes.map(n => h("div", { class: "note" },
-      h("div", { class: "meta" }, h("b", { text: personName(n.created_by) || "Someone" }),
-        h("span", null, fmtTime(n.created_at), (state.role === "admin" || n.created_by === state.me) ? [" · ", h("button", { class: "del", type: "button", text: "Delete", onclick: () => deleteNote(n) })] : null)),
-      h("p", { text: n.body }))) : [h("div", { class: "hint", text: "No updates yet. Post one so the team knows where this stands." })]));
+    const notes = (state.notes[state.editing] || []).slice().sort((a, b) => a.created_at < b.created_at ? -1 : 1);
+    setText("threadCount", notes.length ? String(notes.length) : "");
+    $("thread").replaceChildren(...(notes.length ? notes.map(n => {
+      const name = personName(n.created_by) || "Someone", mine = n.created_by === state.me;
+      return h("div", { class: "note" + (mine ? " mine" : "") },
+        h("span", { class: "ava", text: initials(name), "aria-hidden": "true" }),
+        h("div", { class: "note-b" },
+          h("div", { class: "meta" }, h("b", { text: name + (mine ? " (you)" : "") }), h("span", { text: fmtTime(n.created_at) })),
+          h("p", { text: n.body }),
+          h("div", { class: "note-act" },
+            h("button", { class: "del", type: "button", text: "Reply", onclick: () => replyTo(name) }),
+            (state.role === "admin" || mine) ? h("button", { class: "del", type: "button", text: "Delete", onclick: () => deleteNote(n) }) : null)));
+    }) : [h("div", { class: "hint", text: "No discussion yet. Write the first message so the team knows where this stands." })]));
   }
+  function replyTo(name) {
+    const box = $("noteText"), tag = "@" + name + " ";
+    if (!box.value.includes(tag)) box.value = (box.value && !/\s$/.test(box.value) ? box.value + " " : box.value) + tag;
+    box.focus(); box.setSelectionRange(box.value.length, box.value.length);
+  }
+  $("noteText").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $("noteBtn").click(); } });
   $("fAssignee").addEventListener("change", () => { $("otherWrap").hidden = $("fAssignee").value !== OTHER; if (!$("otherWrap").hidden) $("fAssigneeLabel").focus(); });
 
   // ---------- Writes ----------
@@ -330,9 +345,9 @@
     $("noteBtn").disabled = true;
     const r = await sb.from("task_notes").insert({ task_id: state.editing, body });
     $("noteBtn").disabled = false;
-    if (r.error) return fail("Couldn't post the update", r.error);
+    if (r.error) return fail("Couldn't post the message", r.error);
     $("noteText").value = "";
-    toast("Update posted");
+    toast("Message posted");
     reload();
   });
   async function deleteNote(n) {
@@ -413,6 +428,9 @@
     state.me = u.id; state.role = role;
     const m = await sb.rpc("team_members");
     state.members = m.error ? [{ id: u.id, email: u.email }] : (m.data || []);
+    // Display names set by the admin under Users (available once supabase/permissions.sql has been run)
+    const pp = await sb.rpc("people");
+    state.names = {}; if (!pp.error) for (const x of pp.data || []) if (x.name) state.names[x.id] = x.name.includes(".") || /\d/.test(x.name) ? displayName(x.name) : x.name;
     fillMemberSelects();
     $("me").replaceChildren(h("span", { class: "ini", style: "width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700", text: initials(displayName(u.email)) }), h("span", { text: u.email }));
     $("gate").hidden = true;
