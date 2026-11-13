@@ -77,7 +77,6 @@
       if (window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) {
         document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = !ok; });
       });
-      if (!isAdmin()) { $("fGroup").querySelector('option[value="by"]').remove(); }
       show("viewApp"); loadLookups(); load(); subscribe();
     });
   }
@@ -181,7 +180,6 @@
     var html = "";
     FACETS.forEach(function (f) {
       var k = f.k, sel = state.sel[k], counts = {}, vals = {};
-      if (k === "by" && !isAdmin()) return;
       list.forEach(function (m) { vals[fval(m, k)] = 1; if (matches(m, k)) { var v = fval(m, k); counts[v] = (counts[v] || 0) + 1; } });
       var keys = Object.keys(vals).sort(function (a, b) { return (a === "") - (b === "") || natural(flabel(k, a), flabel(k, b)); });
       if (!keys.length) return;
@@ -214,11 +212,10 @@
     rows.forEach(function (m) { days[m.date] = 1; people[m.by] = 1; hrs += hours(m); if (m.status !== "done") open++; });
     $("sCount").textContent = rows.length;
     $("sCountH").textContent = b[0] === b[1] ? fmtShort(b[0]) : fmtShort(b[0]) + " – " + fmtShort(b[1]);
-    if (isAdmin()) { $("sDaysK").textContent = "Engineers reporting"; $("sDays").textContent = Object.keys(people).length; $("sDaysH").textContent = "on " + Object.keys(days).length + (Object.keys(days).length === 1 ? " day" : " days"); }
-    else { $("sDays").textContent = Object.keys(days).length; $("sDaysH").textContent = "days with at least one activity"; }
+    $("sDaysK").textContent = "Engineers reporting"; $("sDays").textContent = Object.keys(people).length; $("sDaysH").textContent = "on " + Object.keys(days).length + (Object.keys(days).length === 1 ? " day" : " days");
     $("sHours").textContent = hrs ? Math.round(hrs * 10) / 10 : 0; $("sOpen").textContent = open;
     $("statOpen").classList.toggle("active", state.sel.status.size === 2 && state.sel.status.has("ongoing") && state.sel.status.has("pending"));
-    $("lede").textContent = isAdmin() ? "Every engineer's activities. Engineers see only their own." : "Your own activities. Only you and the admin can see them.";
+    $("lede").textContent = isAdmin() ? "Every engineer's activities. Everyone on the team can read them." : "Every engineer's activities. You can edit only your own.";
 
     renderFacets(list); fillLists();
     var chips = "";
@@ -228,13 +225,12 @@
     var nsel = FACETS.reduce(function (n, f) { return n + state.sel[f.k].size; }, 0);
     $("fCount").hidden = !nsel; $("fCount").textContent = nsel;
 
-    var g = state.group === "by" && !isAdmin() ? "date" : state.group;
+    var g = state.group;
     function gval(m) { return g === "date" ? m.date : fval(m, g); }
     rows.sort(function (a, c) {
       if (g && g !== "date") { var ga = flabel(g, gval(a)), gc = flabel(g, gval(c)), gr = (gval(a) === "") - (gval(c) === "") || natural(ga, gc); if (gr) return gr; }
       return (a.date < c.date ? 1 : a.date > c.date ? -1 : 0) || natural(who(a.by), who(c.by)) || natural(a.start || "99", c.start || "99");
     });
-    $("grid").classList.toggle("no-eng", !isAdmin());
     var html = "";
     if (!g) rows.forEach(function (m) { html += rowHtml(m); });
     else {
@@ -244,7 +240,7 @@
         var gid = g + "|" + gr.v, shut = state.shut.has(gid), gh = 0, gp = {};
         gr.items.forEach(function (m) { gh += hours(m); gp[m.by] = 1; });
         html += '<tr class="grp' + (shut ? ' shut' : '') + '" data-g="' + esc(gid) + '" tabindex="0"><td colspan="' + NCOLS + '"><div class="grp-in"><span class="car"></span><strong>' + esc(g === "date" ? fmtDay(gr.v) : flabel(g, gr.v)) + '</strong>' +
-          '<span class="n">' + gr.items.length + (gr.items.length === 1 ? ' activity' : ' activities') + (gh ? ' · ' + fmtHours(gh) : '') + (isAdmin() && g !== "by" ? ' · ' + Object.keys(gp).length + (Object.keys(gp).length === 1 ? ' engineer' : ' engineers') : '') + '</span></div></td></tr>';
+          '<span class="n">' + gr.items.length + (gr.items.length === 1 ? ' activity' : ' activities') + (gh ? ' · ' + fmtHours(gh) : '') + (g !== "by" ? ' · ' + Object.keys(gp).length + (Object.keys(gp).length === 1 ? ' engineer' : ' engineers') : '') + '</span></div></td></tr>';
         if (!shut) gr.items.forEach(function (m) { html += rowHtml(m); });
       });
     }
@@ -305,7 +301,7 @@
     Object.keys(MAP).forEach(function (f) { var el = $("e_" + f); el.value = m ? m[f] : (preset[f] || ""); el.disabled = !ok; });
     machineList();
     $("editTitle").textContent = m ? (isAdmin() || m.by !== state.user.id ? who(m.by) + " · " : "") + fmtShort(m.date) : "Add activity";
-    $("editMeta").textContent = m ? ((m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") + ". " : "") + (ok ? "" : "View only.")) : "This is saved under your name. Add one entry for each job or visit of the day.";
+    $("editMeta").textContent = m ? ((m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") + ". " : "") + (ok ? "" : "View only: you can edit your own activities.")) : "This is saved under your name. Add one entry for each job or visit of the day.";
     $("btnSave").hidden = !ok;
     $("delArea").innerHTML = (m && ok) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
     $("dlgEdit").showModal();

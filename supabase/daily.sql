@@ -3,9 +3,8 @@
 -- Run this once in Supabase: Dashboard → SQL Editor → New query → Run.
 -- Run it after schema.sql and permissions.sql. Safe to run again.
 --
---   every approved account : writes, edits and deletes its own entries
---   viewer                 : sees only its own entries
---   admin                  : sees, edits and deletes everyone's entries
+--   every approved account : sees everyone's entries; writes, edits and deletes its own
+--   admin                  : also edits and deletes everyone's entries
 -- =====================================================================
 
 create table if not exists public.daily_reports (
@@ -49,9 +48,10 @@ create trigger daily_reports_touch
 alter table public.daily_reports enable row level security;
 
 drop policy if exists "daily: own or admin read" on public.daily_reports;
-create policy "daily: own or admin read" on public.daily_reports
+drop policy if exists "daily: approved read" on public.daily_reports;
+create policy "daily: approved read" on public.daily_reports
   for select to authenticated
-  using (public.app_role() = 'admin' or (public.app_role() = 'viewer' and created_by = auth.uid()));
+  using (public.app_role() in ('admin', 'viewer'));
 
 drop policy if exists "daily: write own" on public.daily_reports;
 create policy "daily: write own" on public.daily_reports
