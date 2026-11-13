@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tamura Daily Report</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../styles.css?v=20261113a">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
+<script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="../js/config.js?v=20261111n"></script>
+</head>
+<body>
+
+<!-- ================= Login ================= -->
+<section class="auth" id="viewLogin" hidden>
+  <div class="auth-card">
+    <div class="brand"><span class="mark lg" aria-hidden="true">T</span><span class="eyebrow">Service portal</span><h1>Daily Report</h1></div>
+    <form id="loginForm">
+      <label>Email<input id="loginEmail" type="email" autocomplete="username" required></label>
+      <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+      <div id="loginMsg" class="msg" hidden></div>
+      <button class="btn primary" type="submit" id="btnLogin">Log in</button>
+    </form>
+    <p class="help">Use the same account as the Machine List. First time, or forgot your password? <a href="../">Set it on the Machine List page</a>.</p>
+  </div>
+</section>
+
+<section class="auth" id="viewPending" hidden>
+  <div class="auth-card">
+    <h1>Waiting for approval</h1>
+    <p class="help">You are logged in as <strong id="pendingEmail"></strong>, but an administrator still has to give you access.</p>
+    <div class="actions"><button class="btn" type="button" data-logout>Log out</button></div>
+  </div>
+</section>
+
+<!-- ================= Daily report ================= -->
+<div id="viewApp" hidden>
+  <header class="appbar">
+    <div class="appbar-in">
+      <a class="logo" href="../" aria-label="Tamura service portal"><span class="mark" aria-hidden="true">T</span><span class="logo-t"><b>Tamura</b><i>Service portal</i></span></a>
+      <nav class="mainnav" aria-label="Sections">
+        <a href="../">Machines</a>
+        <a href="../stock/">Stock</a>
+        <a href="./" aria-current="page">Daily report</a>
+        <a href="../calibration/" data-owner hidden>Calibration report</a>
+        <a href="../transport/" data-owner hidden>Transport claim</a>
+        <a href="../tasks/">Team tasks<span class="beta" title="Still being tested and may change">Beta</span></a>
+        <a href="../schedule/" data-owner hidden>Schedule</a>
+      </nav>
+      <div class="account">
+        <span class="who"><span id="userEmail"></span><span class="role" id="userRole"></span></span>
+        <button class="navbtn" type="button" data-logout>Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="pagehead">
+      <div class="brand">
+        <span class="eyebrow">Engineer activity</span>
+        <h1>Daily Report</h1>
+        <p class="lede" id="lede"></p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btnExport" type="button" title="Download the activities shown below as Excel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg><span class="l">Export Excel</span></button>
+        <button class="btn primary" id="btnAdd" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add activity</button>
+      </div>
+    </div>
+
+    <div id="banner" class="banner" hidden></div>
+    <div id="todayBar" class="banner info" hidden></div>
+
+    <section class="summary four" aria-label="Summary">
+      <div class="stat"><span class="k">Activities</span><span class="v" id="sCount">–</span><span class="h" id="sCountH">in this period</span></div>
+      <div class="stat"><span class="k" id="sDaysK">Days reported</span><span class="v" id="sDays">–</span><span class="h" id="sDaysH"></span></div>
+      <div class="stat"><span class="k">Hours logged</span><span class="v" id="sHours">–</span><span class="h">from start and end times</span></div>
+      <button class="stat warn" type="button" id="statOpen"><span class="k"><span class="dot"></span>Not finished</span><span class="v" id="sOpen">–</span><span class="h">ongoing or pending</span></button>
+    </section>
+
+    <div class="layout">
+      <aside class="facets" id="facets" aria-label="Filters">
+        <div class="facets-head"><strong>Filters</strong><button class="linkbtn" type="button" id="btnClear" hidden>Clear all</button><button class="x only-m" type="button" id="btnFacetsClose" aria-label="Close filters">×</button></div>
+        <div class="facet" style="padding:10px 14px 12px">
+          <label>Period
+            <select id="fRange" aria-label="Period">
+              <option value="today">Today</option>
+              <option value="week">This week</option>
+              <option value="last7">Last 7 days</option>
+              <option value="month">This month</option>
+              <option value="lastmonth">Last month</option>
+              <option value="custom">Choose dates…</option>
+            </select></label>
+          <div id="customRange" hidden style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <label>From<input type="date" id="fFrom"></label>
+            <label>To<input type="date" id="fTo"></label>
+          </div>
+        </div>
+        <div id="facetBody"></div>
+      </aside>
+
+      <main class="main">
+        <div class="toolbar">
+          <button class="btn only-m" type="button" id="btnFacets">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Period &amp; filters<span class="badge" id="fCount" hidden></span></button>
+          <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" id="q" placeholder="Search activity, customer, machine…" aria-label="Search"></div>
+          <label class="inline">Group by
+            <select id="fGroup" aria-label="Group rows by">
+              <option value="date">Date</option>
+              <option value="by">Engineer</option>
+              <option value="customer">Customer</option>
+              <option value="">No grouping</option>
+            </select></label>
+          <span class="count" id="count"></span>
+        </div>
+        <div class="chips" id="chips" hidden></div>
+
+        <div class="tablebox">
+          <table id="grid" class="stock daily">
+            <thead><tr>
+              <th>Activity</th>
+              <th>Date</th>
+              <th>Engineer</th>
+              <th>Time</th>
+              <th>Customer</th>
+              <th>Machine</th>
+              <th>Status</th>
+              <th>Next action</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div class="empty" id="empty" hidden>
+            <strong id="emptyTitle">Loading…</strong>
+            <span id="emptyText">The activities appear here once they load.</span>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div class="scrim" id="scrim" hidden></div>
+</div>
+
+<!-- Add / edit activity -->
+<dialog id="dlgEdit" aria-labelledby="editTitle">
+  <form class="dlg" id="editForm" method="dialog">
+    <div class="dlg-head"><h2 id="editTitle">Add activity</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <fieldset><legend>When</legend>
+        <label><span class="req">Date</span><input id="e_date" type="date" required></label>
+        <label>Start<input id="e_start" type="time"></label>
+        <label>End<input id="e_end" type="time"></label>
+      </fieldset>
+      <fieldset><legend>Where</legend>
+        <label>Customer<input id="e_customer" list="custList" autocomplete="off" maxlength="160" placeholder="Customer, or Office"></label>
+        <label>Location<input id="e_location" list="locList" autocomplete="off" maxlength="160" placeholder="City, plant or line"></label>
+        <label>Machine<input id="e_machine" list="machList" autocomplete="off" maxlength="200" placeholder="Brand, model, serial"></label>
+      </fieldset>
+      <fieldset><legend>What</legend>
+        <label>Type of activity<input id="e_type" list="typeList" autocomplete="off" maxlength="60" placeholder="Service, Calibration…"></label>
+        <label>Status
+          <select id="e_status"><option value="done">Done</option><option value="ongoing">Ongoing</option><option value="pending">Pending</option></select></label>
+        <label class="wide"><span class="req">What was done</span><textarea id="e_description" rows="4" required maxlength="4000" placeholder="e.g. Replaced projection lamp on line 3, ran calibration, result OK"></textarea></label>
+        <label class="wide">Next action<textarea id="e_next" rows="2" maxlength="2000" placeholder="e.g. Come back Thursday with the spare part"></textarea></label>
+      </fieldset>
+      <p class="help" id="editMeta"></p>
+    </div>
+    <div class="dlg-foot">
+      <div id="delArea"></div>
+      <div class="r">
+        <button class="btn" type="button" data-close>Close</button>
+        <button class="btn primary" type="submit" id="btnSave">Save activity</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="custList"></datalist><datalist id="locList"></datalist><datalist id="machList"></datalist>
+<datalist id="typeList"><option value="Service / repair"><option value="Calibration"><option value="Installation"><option value="Preventive maintenance"><option value="Troubleshooting"><option value="Training"><option value="Programming"><option value="Remote support"><option value="Meeting"><option value="Office work"><option value="Travel"><option value="Leave"></datalist>
+<div class="toast" id="toast" hidden></div>
+
+<script src="daily.js?v=20261113a"></script>
+</body>
+</html>

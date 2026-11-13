@@ -190,6 +190,10 @@ label.span2{grid-column:span 2}
 table.stock{min-width:1040px}
 table.stock td{vertical-align:middle}
 table.stock .c-kind{min-width:230px}
+table.daily td{vertical-align:top}
+#grid.no-eng th:nth-child(3),#grid.no-eng tr.row td:nth-child(3){display:none}
+table.daily .c-kind{min-width:300px;max-width:460px}
+table.daily .desc{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px}
 .disks{display:flex;flex-direction:column;gap:6px}
 .disks .lbl{font-size:12px;color:var(--muted);font-weight:500}
 #diskRows{display:flex;flex-direction:column;gap:8px}
