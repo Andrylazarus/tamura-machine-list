@@ -23,7 +23,9 @@
   function errText(err) {
     var m = (err && (err.message || err.details)) || String(err);
     if (/report_kind/.test(m)) return "Weekly reports are not switched on yet. An admin has to run supabase/daily.sql again in the Supabase SQL Editor.";
-    if (err && (err.code === "42501" || /row-level security|permission/i.test(m))) return "You don't have permission for this. You can only change your own activities.";
+    if (err && (err.code === "42501" || /row-level security|permission/i.test(m))) return isAdmin()
+      ? "Saving for another engineer is not switched on yet. Run supabase/daily.sql again in the Supabase SQL Editor."
+      : "You don't have permission for this. You can only change your own activities.";
     return m;
   }
 
@@ -335,7 +337,7 @@
     if (!editing) $("editMeta").textContent = k === "week" ? "Saved under your name for the whole week. Add one entry for each job you did that week." : "This is saved under your name. Add one entry for each job or visit of the day.";
     $("btnMoreAct").lastChild.textContent = k === "week" ? "Add another job this week" : "Add another activity";
     $("moreHelp").textContent = k === "week" ? "Did more than one job this week? Add each one here and save them all together." : "Did more than one job this day? Add each one here and save them all together.";
-    syncSaveLabel();
+    syncSaveLabel(); syncByMeta();
   }
   $("kindSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-kind]"); if (b && !editing) setKind(b.dataset.kind); });
   function openEdit(id) {
@@ -350,12 +352,35 @@
     fillWeeks(m && m.kind === "week" ? m.date : ""); $("e_week").value = m && m.kind === "week" ? m.date : iso(mondayOf(new Date())); $("e_week").disabled = !ok;
     $("kindSeg").hidden = !!m; setKind(m ? m.kind : (state.sel.kind.size === 1 && state.sel.kind.has("week") ? "week" : "day"));
     if (m && m.kind === "week") $("editTitle").textContent = (isAdmin() || m.by !== state.user.id ? who(m.by) + " · " : "") + "Week " + weekText(m.date);
+    fillEngineers(m);
     $("extraActs").innerHTML = ""; $("moreActs").hidden = !!m; syncSaveLabel();
     $("delArea").innerHTML = (m && ok) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
     $("dlgEdit").showModal();
     if (!m) setTimeout(function () { $("e_customer").focus(); }, 30);
   }
   $("btnAdd").addEventListener("click", function () { openEdit(null); });
+
+  // Admins choose whose activity it is (default: themselves); everyone else always writes their own
+  function fillEngineers(m) {
+    var adm = isAdmin();
+    $("e_byL").hidden = !adm;
+    if (!adm) return;
+    var cur = m ? m.by : (state.sel.by.size === 1 ? Array.from(state.sel.by)[0] : state.user.id);
+    var ids = Object.keys(state.people);
+    if (ids.indexOf(state.user.id) < 0) ids.push(state.user.id);
+    if (cur && ids.indexOf(cur) < 0) ids.push(cur);
+    ids.sort(function (a, b) { return natural(who(a), who(b)); });
+    $("e_by").innerHTML = ids.map(function (id) { return '<option value="' + esc(id) + '">' + esc(who(id) + (id === state.user.id ? " (me)" : "")) + '</option>'; }).join("");
+    $("e_by").value = cur || state.user.id;
+    syncByMeta();
+  }
+  function syncByMeta() {
+    if (editing || !isAdmin()) return;
+    var mine = $("e_by").value === state.user.id;
+    $("editMeta").textContent = mine ? (kind === "week" ? "Saved under your name for the whole week." : "This is saved under your name. Add one entry for each job or visit of the day.")
+                                     : "Saved under " + who($("e_by").value) + "'s name. They can see and edit it too.";
+  }
+  $("e_by").addEventListener("change", syncByMeta);
 
   // ---------- more than one activity in one go (new entries only) ----------
   function syncSaveLabel() {
@@ -404,6 +429,9 @@
     var row = { report_date: wk ? $("e_week").value : v("date"), start_time: wk ? null : v("start") || null, end_time: wk ? null : v("end") || null, customer: v("customer"), location: v("location"), machine: v("machine"),
                 activity_type: v("type"), status: v("status") || "done", description: v("description"), next_action: v("next") };
     if (wk) row.report_kind = "week";     // daily entries leave it out, so they also work before daily.sql is re-run
+    // An admin's choice of engineer; sent only when it is someone else (or changed), so own entries work as before
+    var byPick = isAdmin() && $("e_by").value ? $("e_by").value : "";
+    if (byPick && (editing ? byPick !== editing.by : byPick !== state.user.id)) row.created_by = byPick;
     var rowsToAdd = [row];
     if (!editing) {
       var blocks = $("extraActs").querySelectorAll(".xact");
@@ -413,6 +441,7 @@
         var extra = { report_date: row.report_date, start_time: wk ? null : x("start") || null, end_time: wk ? null : x("end") || null, customer: x("customer"), location: x("location"), machine: x("machine"),
                          activity_type: x("type"), status: x("status") || "done", description: x("description"), next_action: x("next") };
         if (wk) extra.report_kind = "week";
+        if (row.created_by) extra.created_by = row.created_by;
         rowsToAdd.push(extra);
       }
     }

@@ -30,14 +30,16 @@ alter table public.daily_reports add column if not exists report_kind text not n
 create index if not exists daily_reports_date_idx on public.daily_reports (report_date desc);
 create index if not exists daily_reports_by_idx on public.daily_reports (created_by, report_date desc);
 
--- Keep "last changed" current and never let a client change whose entry it is
+-- Keep "last changed" current. Only an admin may move an entry to another engineer.
 create or replace function public.touch_daily_report()
 returns trigger
 language plpgsql
 as $$
 begin
   new.updated_at := now();
-  new.created_by := old.created_by;
+  if public.app_role() is distinct from 'admin' or new.created_by is null then
+    new.created_by := old.created_by;
+  end if;
   new.created_at := old.created_at;
   return new;
 end;
@@ -56,10 +58,11 @@ create policy "daily: approved read" on public.daily_reports
   for select to authenticated
   using (public.app_role() in ('admin', 'viewer'));
 
+-- Everyone writes their own entries; an admin may also write one for another engineer
 drop policy if exists "daily: write own" on public.daily_reports;
 create policy "daily: write own" on public.daily_reports
   for insert to authenticated
-  with check (public.app_role() in ('admin', 'viewer') and created_by = auth.uid());
+  with check (public.app_role() = 'admin' or (public.app_role() = 'viewer' and created_by = auth.uid()));
 
 drop policy if exists "daily: own or admin update" on public.daily_reports;
 create policy "daily: own or admin update" on public.daily_reports
