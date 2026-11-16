@@ -86,7 +86,11 @@
       });
       $("btnAdd").hidden = !isAdmin();
       $("lede").textContent = isAdmin() ? "Everyone's attendance. As admin you can add or correct any entry; click a row." : "Check in when you start work and check out when you finish. Everyone on the team can see the list.";
-      show("viewApp"); loadTeam(); loadCustomers(); load(); loadToday(); subscribe();
+      // While Attendance is in beta it is open to admins (and the owner) only; other accounts are sent back
+      var start = function () { show("viewApp"); loadTeam(); loadCustomers(); load(); loadToday(); subscribe(); };
+      if (isAdmin()) start();
+      else if (window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) { if (ok) start(); else location.replace("../daily/"); }, function () { location.replace("../daily/"); });
+      else location.replace("../daily/");
     });
   }
   show("viewLogin");
