@@ -116,9 +116,9 @@
       $("userRole").textContent = role; $("userRole").className = "role " + role;
       document.querySelectorAll("[data-admin]").forEach(function (b) { b.hidden = !isAdmin(); });
       $("btnAdd").hidden = !canAdd();
-      // Calibration report, transport claim, team tasks and schedule are for the owner account only
-      document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = true; });
-      if (window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) {
+      // Calibration report, transport claim and schedule are for admins (and the owner account)
+      document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = !isAdmin(); });
+      if (!isAdmin() && window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) {
         document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = !ok; });
       });
       show("viewApp");

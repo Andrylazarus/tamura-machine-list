@@ -13,7 +13,7 @@ window.APP_CONFIG = {
   AUTO_LOGOUT_MINUTES: 60
 };
 
-// The calibration report, transport claim, team tasks and schedule pages open for one account only.
+// The calibration report, transport claim and schedule pages open for admins and for the owner account.
 // OWNER_ID is the SHA-256 of that account's email (lowercase), so the address itself is not published here.
 window.APP_CONFIG.OWNER_ID = "f40b7cb7749f58d5e767e5e32d98866c3fed1400f1792045447e9fdf16d09379";
 window.APP_IS_OWNER = async function (email) {

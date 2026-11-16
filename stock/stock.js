@@ -56,7 +56,8 @@
       state.role = role;
       $("userEmail").textContent = user.email || "";
       $("userRole").textContent = role; $("userRole").className = "role " + role;
-      if (window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) {
+      document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = !isAdmin(); });
+      if (!isAdmin() && window.APP_IS_OWNER) window.APP_IS_OWNER(user.email).then(function (ok) {
         document.querySelectorAll("[data-owner]").forEach(function (a) { a.hidden = !ok; });
       });
       $("btnImport").hidden = !isAdmin();
