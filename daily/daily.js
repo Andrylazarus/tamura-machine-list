@@ -495,16 +495,29 @@
     if (/bucket not found|not found|photos/i.test(m) && !/read/i.test(m)) return "Photos are not switched on yet. An admin has to run supabase/daily-photos.sql in the Supabase SQL Editor.";
     return m;
   }
-  // Shrink a phone photo to at most 1600 px on its long side, as JPEG (about 200–300 KB)
+  // Shrink a phone photo to under 100 KB: start at 1280 px on the long side, lower the JPEG quality step by
+  // step, and if that is not enough, make the picture smaller (1024, 860, 720 px) and try again
+  var TARGET_BYTES = 100 * 1024;
   function compress(file) {
     return new Promise(function (res, rej) {
       var url = URL.createObjectURL(file), img = new Image();
       img.onload = function () {
-        var k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
-        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-        var g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(url);
-        c.toBlob(function (b) { if (b) res(b); else rej(new Error("Could not read that photo.")); }, "image/jpeg", 0.75);
+        var sizes = [1280, 1024, 860, 720], qualities = [0.72, 0.62, 0.52, 0.44], best = null;
+        function encode(si, qi) {
+          var k = Math.min(1, sizes[si] / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+          c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+          var g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+          c.toBlob(function (b) {
+            if (!b) { if (best) res(best); else rej(new Error("Could not read that photo.")); return; }
+            if (!best || b.size < best.size) best = b;
+            if (b.size <= TARGET_BYTES) { res(b); return; }
+            if (qi + 1 < qualities.length) encode(si, qi + 1);
+            else if (si + 1 < sizes.length) encode(si + 1, 1);
+            else res(best);
+          }, "image/jpeg", qualities[qi]);
+        }
+        encode(0, 0);
       };
       img.onerror = function () { URL.revokeObjectURL(url); rej(new Error("That file is not a photo this browser can read.")); };
       img.src = url;
