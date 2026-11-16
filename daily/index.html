@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="../styles.css?v=20261116d">
+<link rel="stylesheet" href="../styles.css?v=20261116f">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -108,6 +108,10 @@
       </aside>
 
       <main class="main">
+        <div class="tabs" role="tablist" aria-label="Report">
+          <button type="button" role="tab" class="tab" id="tabDay" aria-selected="true">Daily<span class="n" id="tabDayN"></span></button>
+          <button type="button" role="tab" class="tab" id="tabWeek" aria-selected="false">Weekly<span class="n" id="tabWeekN"></span></button>
+        </div>
         <div class="toolbar">
           <button class="btn only-m" type="button" id="btnFacets">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Period &amp; filters<span class="badge" id="fCount" hidden></span></button>
@@ -199,6 +203,6 @@
 <datalist id="typeList"><option value="Service / repair"><option value="Calibration"><option value="Installation"><option value="Preventive maintenance"><option value="Troubleshooting"><option value="Training"><option value="Programming"><option value="Remote support"><option value="Meeting"><option value="Office work"><option value="Travel"><option value="Leave"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="daily.js?v=20261116e"></script>
+<script src="daily.js?v=20261116f"></script>
 </body>
 </html>

@@ -4,13 +4,13 @@
   var $ = function (id) { return document.getElementById(id); };
   var cfg = window.APP_CONFIG || {};
   var ST_LABEL = { done: "Done", ongoing: "Ongoing", pending: "Pending" }, ST_PILL = { done: "ok", ongoing: "warn", pending: "none" };
-  var FACETS = [{ k: "by", label: "Engineer" }, { k: "kind", label: "Report" }, { k: "customer", label: "Customer" }, { k: "type", label: "Type of activity" }, { k: "status", label: "Status" }];
+  var FACETS = [{ k: "by", label: "Engineer" }, { k: "customer", label: "Customer" }, { k: "type", label: "Type of activity" }, { k: "status", label: "Status" }];
   var KIND_LABEL = { day: "Daily", week: "Weekly" };
   var NCOLS = 8;
 
   var state = { docs: new Map(), q: "", group: "date", range: "last7", from: "", to: "", shut: new Set(), shutFacet: {},
                 sel: { by: new Set(), kind: new Set(), customer: new Set(), type: new Set(), status: new Set() },
-                people: {}, machines: [], role: null, user: null, ready: false, channel: null };
+                people: {}, machines: [], role: null, user: null, ready: false, channel: null, view: "day" };
   function isAdmin() { return state.role === "admin"; }
   function canEdit(m) { return isAdmin() || (!!m && !!state.user && m.by === state.user.id); }
 
@@ -166,7 +166,8 @@
   }
 
   // ---------- helpers ----------
-  function all() { return Array.from(state.docs.values()); }
+  // Daily and weekly entries are shown on separate tabs
+  function all() { return Array.from(state.docs.values()).filter(function (m) { return m.kind === state.view; }); }
   function who(id) { if (!id) return "Former user"; return state.people[id] || (state.user && id === state.user.id ? "You" : "Unknown user"); }
   function fval(m, k) { return (m[k] || "").trim(); }
   function flabel(k, v) { return k === "by" ? who(v) : k === "status" ? ST_LABEL[v] : k === "kind" ? KIND_LABEL[v] : (v || "Not set"); }
@@ -193,8 +194,8 @@
   }
   $("e_customer").addEventListener("input", machineList);
 
-  try { var pv = JSON.parse(localStorage.getItem("tml.daily") || "null"); if (pv) { if (pv.group != null) state.group = pv.group; if (pv.range && pv.range !== "custom") state.range = pv.range; } } catch (e) {}
-  function savePrefs() { try { localStorage.setItem("tml.daily", JSON.stringify({ group: state.group, range: state.range })); } catch (e) {} }
+  try { var pv = JSON.parse(localStorage.getItem("tml.daily") || "null"); if (pv) { if (pv.group != null) state.group = pv.group; if (pv.range && pv.range !== "custom") state.range = pv.range; if (pv.view === "week") state.view = "week"; } } catch (e) {}
+  function savePrefs() { try { localStorage.setItem("tml.daily", JSON.stringify({ group: state.group, range: state.range, view: state.view })); } catch (e) {} }
   $("fGroup").value = state.group; $("fRange").value = state.range;
 
   // ---------- render ----------
@@ -234,7 +235,10 @@
     rows.forEach(function (m) { days[m.date] = 1; people[m.by] = 1; hrs += hours(m); if (m.status !== "done") open++; });
     $("sCount").textContent = rows.length;
     $("sCountH").textContent = b[0] === b[1] ? fmtShort(b[0]) : fmtShort(b[0]) + " – " + fmtShort(b[1]);
-    $("sDaysK").textContent = "Engineers reporting"; $("sDays").textContent = Object.keys(people).length; $("sDaysH").textContent = "on " + Object.keys(days).length + (Object.keys(days).length === 1 ? " day" : " days");
+    $("sDaysK").textContent = "Engineers reporting"; $("sDays").textContent = Object.keys(people).length; $("sDaysH").textContent = (state.view === "week" ? "in " : "on ") + Object.keys(days).length + (state.view === "week" ? (Object.keys(days).length === 1 ? " week" : " weeks") : (Object.keys(days).length === 1 ? " day" : " days"));
+    var nd = 0, nw = 0; state.docs.forEach(function (m) { if (m.kind === "week") nw++; else nd++; });
+    $("tabDayN").textContent = nd; $("tabWeekN").textContent = nw;
+    $("tabDay").setAttribute("aria-selected", String(state.view === "day")); $("tabWeek").setAttribute("aria-selected", String(state.view === "week"));
     $("sHours").textContent = hrs ? Math.round(hrs * 10) / 10 : 0; $("sOpen").textContent = open;
     $("statOpen").classList.toggle("active", state.sel.status.size === 2 && state.sel.status.has("ongoing") && state.sel.status.has("pending"));
     $("lede").textContent = isAdmin() ? "Every engineer's activities. Everyone on the team can read them." : "Every engineer's activities. You can edit only your own.";
@@ -300,6 +304,9 @@
     if (!on) { state.sel.status.add("ongoing"); state.sel.status.add("pending"); }
     render();
   });
+  function setView(v) { state.view = v; FACETS.forEach(function (f) { state.sel[f.k].clear(); }); savePrefs(); render(); }
+  $("tabDay").addEventListener("click", function () { setView("day"); });
+  $("tabWeek").addEventListener("click", function () { setView("week"); });
   $("fGroup").addEventListener("change", function () { state.group = this.value; savePrefs(); render(); });
   var qt; $("q").addEventListener("input", function () { var v = this.value; clearTimeout(qt); qt = setTimeout(function () { state.q = v; render(); }, 120); });
   function rowAction(e) {
@@ -350,7 +357,7 @@
     $("editMeta").textContent = m ? ((m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") + ". " : "") + (ok ? "" : "View only: you can edit your own activities.")) : "This is saved under your name. Add one entry for each job or visit of the day.";
     $("btnSave").hidden = !ok;
     fillWeeks(m && m.kind === "week" ? m.date : ""); $("e_week").value = m && m.kind === "week" ? m.date : iso(mondayOf(new Date())); $("e_week").disabled = !ok;
-    $("kindSeg").hidden = !!m; setKind(m ? m.kind : (state.sel.kind.size === 1 && state.sel.kind.has("week") ? "week" : "day"));
+    $("kindSeg").hidden = !!m; setKind(m ? m.kind : state.view);
     if (m && m.kind === "week") $("editTitle").textContent = (isAdmin() || m.by !== state.user.id ? who(m.by) + " · " : "") + "Week " + weekText(m.date);
     fillEngineers(m);
     $("extraActs").innerHTML = ""; $("moreActs").hidden = !!m; syncSaveLabel();
