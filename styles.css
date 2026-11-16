@@ -318,3 +318,31 @@ table.daily .desc{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px}
 }
 @media (max-width:380px){fieldset{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- Daily report: several activities in one go ---------- */
+#extraActs{display:flex;flex-direction:column;gap:14px}
+#extraActs:empty{display:none}
+.xact{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r);background:var(--surface-2);padding:10px 14px 14px}
+.xact-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.xact-head strong{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+.moreacts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.moreacts .help{margin:0}
+
+/* ---------- Attendance page ---------- */
+.attend{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 18px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-1)}
+.attend.in{border-left-color:var(--ok)} .attend.out{border-left-color:var(--accent)} .attend.away{border-left-color:var(--warn)} .attend.none{border-left-color:var(--bad)}
+.attend-l{display:flex;flex-direction:column;gap:2px;min-width:0}
+.attend-l strong{font-size:17px;letter-spacing:-.01em}
+.attend-l .help{margin:0}
+.attend-r{display:flex;flex-wrap:wrap;gap:8px}
+.attbar{flex-wrap:wrap}
+.attbar #customRange{display:inline-flex;align-items:center;gap:6px}
+.attbar #customRange[hidden]{display:none}
+.attsum{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.attsum .pill{font-size:12.5px;padding:4px 10px}
+table.att{min-width:820px}
+table.att tr.miss td{color:var(--muted)}
+table.att tr.miss .pill{background:var(--bad-soft);color:var(--bad)}
+.pill.att-off{background:var(--none-soft);color:var(--muted)}
+.pill.att-out{background:var(--accent-soft);color:var(--accent)}
+@media (max-width:760px){.attend{padding:12px 13px}.attend-r{width:100%}.attend-r .btn{flex:1;min-height:44px;justify-content:center}table.att{min-width:0}}

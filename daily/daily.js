@@ -316,11 +316,42 @@
     $("editTitle").textContent = m ? (isAdmin() || m.by !== state.user.id ? who(m.by) + " · " : "") + fmtShort(m.date) : "Add activity";
     $("editMeta").textContent = m ? ((m.updatedAt ? "Last changed " + new Date(m.updatedAt).toLocaleString("en-GB") + ". " : "") + (ok ? "" : "View only: you can edit your own activities.")) : "This is saved under your name. Add one entry for each job or visit of the day.";
     $("btnSave").hidden = !ok;
+    $("extraActs").innerHTML = ""; $("moreActs").hidden = !!m; syncSaveLabel();
     $("delArea").innerHTML = (m && ok) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
     $("dlgEdit").showModal();
     if (!m) setTimeout(function () { $("e_customer").focus(); }, 30);
   }
   $("btnAdd").addEventListener("click", function () { openEdit(null); });
+
+  // ---------- more than one activity in one go (new entries only) ----------
+  function syncSaveLabel() {
+    var n = $("extraActs").children.length;
+    $("btnSave").textContent = n ? "Save " + (n + 1) + " activities" : "Save activity";
+    Array.prototype.forEach.call($("extraActs").children, function (el, i) { el.querySelector(".xact-n").textContent = "Activity " + (i + 2); });
+  }
+  $("btnMoreAct").addEventListener("click", function () {
+    var prev = $("extraActs").lastElementChild, val = function (sel, main) { return prev ? prev.querySelector(sel).value : $(main).value; };
+    var el = document.createElement("section"); el.className = "xact";
+    el.innerHTML =
+      '<div class="xact-head"><strong class="xact-n"></strong><button class="x" type="button" data-x="del" aria-label="Remove this activity" title="Remove this activity">×</button></div>' +
+      '<fieldset>' +
+        '<label>Start<input type="time" data-x="start" value="' + esc(val("[data-x=end]", "e_end")) + '"></label>' +
+        '<label>End<input type="time" data-x="end"></label>' +
+        '<label>Customer<input data-x="customer" list="custList" autocomplete="off" maxlength="160" value="' + esc(val("[data-x=customer]", "e_customer")) + '"></label>' +
+        '<label>Location<input data-x="location" list="locList" autocomplete="off" maxlength="160" value="' + esc(val("[data-x=location]", "e_location")) + '"></label>' +
+        '<label>Machine<input data-x="machine" list="machList" autocomplete="off" maxlength="200" placeholder="Brand, model, serial"></label>' +
+        '<label>Type of activity<input data-x="type" list="typeList" autocomplete="off" maxlength="60" placeholder="Service, Calibration…"></label>' +
+        '<label>Status<select data-x="status"><option value="done">Done</option><option value="ongoing">Ongoing</option><option value="pending">Pending</option></select></label>' +
+        '<label class="wide"><span class="req">What was done</span><textarea data-x="description" rows="3" maxlength="4000"></textarea></label>' +
+        '<label class="wide">Next action<textarea data-x="next" rows="2" maxlength="2000"></textarea></label>' +
+      '</fieldset>';
+    $("extraActs").appendChild(el); syncSaveLabel();
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setTimeout(function () { el.querySelector("[data-x=machine]").focus(); }, 60);
+  });
+  $("extraActs").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-x=del]"); if (!b) return; b.closest(".xact").remove(); syncSaveLabel();
+  });
   $("delArea").addEventListener("click", function (e) {
     if (e.target.id === "btnDel") $("delArea").innerHTML = '<span class="confirm">Delete this activity? <button class="btn danger solid" type="button" id="btnDelYes">Delete</button><button class="btn" type="button" id="btnDelNo">Keep</button></span>';
     if (e.target.id === "btnDelNo") $("delArea").innerHTML = '<button class="btn danger" type="button" id="btnDel">Delete</button>';
@@ -337,14 +368,25 @@
     if (!v("description")) { toast("Write what was done."); return; }
     var row = { report_date: v("date"), start_time: v("start") || null, end_time: v("end") || null, customer: v("customer"), location: v("location"), machine: v("machine"),
                 activity_type: v("type"), status: v("status") || "done", description: v("description"), next_action: v("next") };
+    var rowsToAdd = [row];
+    if (!editing) {
+      var blocks = $("extraActs").querySelectorAll(".xact");
+      for (var i = 0; i < blocks.length; i++) {
+        var x = function (k) { return blocks[i].querySelector("[data-x=" + k + "]").value.trim(); };
+        if (!x("description")) { toast("Write what was done for activity " + (i + 2) + ", or remove it."); blocks[i].querySelector("[data-x=description]").focus(); return; }
+        rowsToAdd.push({ report_date: row.report_date, start_time: x("start") || null, end_time: x("end") || null, customer: x("customer"), location: x("location"), machine: x("machine"),
+                         activity_type: x("type"), status: x("status") || "done", description: x("description"), next_action: x("next") });
+      }
+    }
     var btn = $("btnSave"); btn.disabled = true;
-    var q = editing ? sb.from("daily_reports").update(row).eq("id", editing._id).select().single() : sb.from("daily_reports").insert(row).select().single();
+    var q = editing ? sb.from("daily_reports").update(row).eq("id", editing._id).select() : sb.from("daily_reports").insert(rowsToAdd).select();
     q.then(function (res) {
       if (res.error) { toast("Could not save: " + errText(res.error)); return; }
-      var o = fromRow(res.data), b = bounds();
-      if (o.date >= b[0] && o.date <= b[1]) state.docs.set(o._id, o); else state.docs.delete(o._id);
+      var b = bounds(), list = res.data || [], inside = true;
+      list.forEach(function (r) { var o = fromRow(r); if (o.date >= b[0] && o.date <= b[1]) state.docs.set(o._id, o); else { state.docs.delete(o._id); inside = false; } });
       render(); todayBar(); $("dlgEdit").close();
-      toast(o.date >= b[0] && o.date <= b[1] ? (editing ? "Activity updated" : "Activity added") : "Saved. It is outside the period shown, so change the period to see it.");
+      toast(!inside ? "Saved. It is outside the period shown, so change the period to see it."
+                    : editing ? "Activity updated" : list.length > 1 ? list.length + " activities added" : "Activity added");
     }).finally(function () { btn.disabled = false; });
   });
 

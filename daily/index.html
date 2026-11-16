@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="../styles.css?v=20261113a">
+<link rel="stylesheet" href="../styles.css?v=20261116a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -47,6 +47,7 @@
         <a href="../">Machines</a>
         <a href="../stock/">Stock</a>
         <a href="./" aria-current="page">Daily report</a>
+        <a href="../attendance/">Attendance</a>
         <a href="../calibration/" data-owner hidden>Calibration report</a>
         <a href="../transport/" data-owner hidden>Transport claim</a>
         <a href="../tasks/">Team tasks<span class="beta" title="Still being tested and may change">Beta</span></a>
@@ -170,6 +171,12 @@
         <label class="wide"><span class="req">What was done</span><textarea id="e_description" rows="4" required maxlength="4000" placeholder="e.g. Replaced projection lamp on line 3, ran calibration, result OK"></textarea></label>
         <label class="wide">Next action<textarea id="e_next" rows="2" maxlength="2000" placeholder="e.g. Come back Thursday with the spare part"></textarea></label>
       </fieldset>
+      <div id="extraActs"></div>
+      <div id="moreActs" class="moreacts">
+        <button class="btn" type="button" id="btnMoreAct">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add another activity</button>
+        <span class="help">Did more than one job this day? Add each one here and save them all together.</span>
+      </div>
       <p class="help" id="editMeta"></p>
     </div>
     <div class="dlg-foot">
@@ -186,6 +193,6 @@
 <datalist id="typeList"><option value="Service / repair"><option value="Calibration"><option value="Installation"><option value="Preventive maintenance"><option value="Troubleshooting"><option value="Training"><option value="Programming"><option value="Remote support"><option value="Meeting"><option value="Office work"><option value="Travel"><option value="Leave"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="daily.js?v=20261116b"></script>
+<script src="daily.js?v=20261116c"></script>
 </body>
 </html>

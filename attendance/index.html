@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tamura Attendance</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../styles.css?v=20261116a">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
+<script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="../js/config.js?v=20261116b"></script>
+</head>
+<body>
+
+<!-- ================= Login ================= -->
+<section class="auth" id="viewLogin" hidden>
+  <div class="auth-card">
+    <div class="brand"><span class="mark lg" aria-hidden="true">T</span><span class="eyebrow">Service portal</span><h1>Attendance</h1></div>
+    <form id="loginForm">
+      <label>Email<input id="loginEmail" type="email" autocomplete="username" required></label>
+      <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+      <div id="loginMsg" class="msg" hidden></div>
+      <button class="btn primary" type="submit" id="btnLogin">Log in</button>
+    </form>
+    <p class="help">Use the same account as the Machine List. First time, or forgot your password? <a href="../">Set it on the Machine List page</a>.</p>
+  </div>
+</section>
+
+<section class="auth" id="viewPending" hidden>
+  <div class="auth-card">
+    <h1>Waiting for approval</h1>
+    <p class="help">You are logged in as <strong id="pendingEmail"></strong>, but an administrator still has to give you access.</p>
+    <div class="actions"><button class="btn" type="button" data-logout>Log out</button></div>
+  </div>
+</section>
+
+<!-- ================= Attendance ================= -->
+<div id="viewApp" hidden>
+  <header class="appbar">
+    <div class="appbar-in">
+      <a class="logo" href="../" aria-label="Tamura service portal"><span class="mark" aria-hidden="true">T</span><span class="logo-t"><b>Tamura</b><i>Service portal</i></span></a>
+      <nav class="mainnav" aria-label="Sections">
+        <a href="../">Machines</a>
+        <a href="../stock/">Stock</a>
+        <a href="../daily/">Daily report</a>
+        <a href="./" aria-current="page">Attendance</a>
+        <a href="../calibration/" data-owner hidden>Calibration report</a>
+        <a href="../transport/" data-owner hidden>Transport claim</a>
+        <a href="../tasks/">Team tasks<span class="beta" title="Still being tested and may change">Beta</span></a>
+        <a href="../schedule/" data-owner hidden>Schedule</a>
+      </nav>
+      <div class="account">
+        <span class="who"><span id="userEmail"></span><span class="role" id="userRole"></span></span>
+        <button class="navbtn" type="button" data-logout>Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="pagehead">
+      <div class="brand">
+        <span class="eyebrow">Engineer attendance</span>
+        <h1>Attendance</h1>
+        <p class="lede" id="lede">Check in when you start work and check out when you finish.</p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btnExport" type="button" title="Download the attendance shown below as Excel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg><span class="l">Export Excel</span></button>
+        <button class="btn primary" id="btnAdd" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add attendance</button>
+      </div>
+    </div>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <section class="attend" id="attendCard" hidden aria-label="My attendance today">
+      <div class="attend-l">
+        <span class="eyebrow" id="attDay">My attendance today</span>
+        <strong id="attState">Not checked in yet</strong>
+        <span class="help" id="attSub"></span>
+      </div>
+      <div class="attend-r" id="attButtons"></div>
+    </section>
+
+    <section class="summary four" aria-label="Today">
+      <div class="stat ok"><span class="k"><span class="dot"></span>Present today</span><span class="v" id="sPresent">–</span><span class="h" id="sPresentH"></span></div>
+      <div class="stat warn"><span class="k"><span class="dot"></span>Sick / permission today</span><span class="v" id="sAway">–</span><span class="h" id="sAwayH"></span></div>
+      <div class="stat"><span class="k">Leave / day off today</span><span class="v" id="sLeave">–</span><span class="h" id="sLeaveH"></span></div>
+      <div class="stat bad"><span class="k"><span class="dot"></span>Not checked in today</span><span class="v" id="sMissing">–</span><span class="h" id="sMissingH"></span></div>
+    </section>
+
+    <div class="toolbar attbar">
+      <label class="inline">Period
+        <select id="fRange" aria-label="Period">
+          <option value="today">Today</option>
+          <option value="last7">Last 7 days</option>
+          <option value="week">This week</option>
+          <option value="last30">Last 30 days</option>
+          <option value="month">This month</option>
+          <option value="lastmonth">Last month</option>
+          <option value="custom">Choose dates…</option>
+        </select></label>
+      <span id="customRange" class="inline" hidden>
+        <input type="date" id="fFrom" aria-label="From"> – <input type="date" id="fTo" aria-label="To"></span>
+      <label class="inline">Engineer<select id="fUser" aria-label="Engineer"><option value="">Everyone</option></select></label>
+      <label class="inline">Show
+        <select id="fStatus" aria-label="Show">
+          <option value="">All</option>
+          <option value="present">Present</option>
+          <option value="away">Sick / permission</option>
+          <option value="leave">Leave / day off</option>
+          <option value="absent">Absent</option>
+          <option value="none">No record</option>
+        </select></label>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="attsum" id="attSum"></div>
+
+    <div class="tablebox">
+      <table class="stock daily att">
+        <thead><tr><th>Engineer</th><th>Date</th><th>Attendance</th><th>Check in</th><th>Check out</th><th>Hours</th><th>Note</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden><strong id="emptyTitle">Loading…</strong><span id="emptyText">Attendance appears here once it loads.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Own entry (today) or admin (anyone, any day) -->
+<dialog id="dlgAtt" aria-labelledby="attTitle">
+  <form class="dlg" id="attForm" method="dialog">
+    <div class="dlg-head"><h2 id="attTitle">Attendance</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <fieldset>
+        <label id="a_userL">Engineer<select id="a_user"></select></label>
+        <label id="a_dateL"><span class="req">Date</span><input id="a_date" type="date" required></label>
+        <label>Attendance
+          <select id="a_status">
+            <option value="present">Present (Hadir)</option>
+            <option value="sick">Sick (Sakit)</option>
+            <option value="permit">Permission (Izin)</option>
+            <option value="leave">Leave (Cuti)</option>
+            <option value="off" data-admin>Day off (Libur)</option>
+            <option value="absent" data-admin>Absent without notice (Alpa)</option>
+          </select></label>
+        <label id="a_inL">Check in<input id="a_in" type="time"></label>
+        <label id="a_outL">Check out<input id="a_out" type="time"></label>
+        <label class="wide">Note<textarea id="a_note" rows="2" maxlength="500" placeholder="e.g. Fever, doctor's letter tomorrow · Family matter · Annual leave"></textarea></label>
+      </fieldset>
+      <p class="help" id="attMeta"></p>
+    </div>
+    <div class="dlg-foot">
+      <div id="delArea"></div>
+      <div class="r">
+        <button class="btn" type="button" data-close>Close</button>
+        <button class="btn primary" type="submit" id="btnSave">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" hidden></div>
+
+<script src="attendance.js?v=20261116a"></script>
+</body>
+</html>
