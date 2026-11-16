@@ -590,7 +590,35 @@
     if (state.q.trim()) parts.push('Search: "' + state.q.trim() + '"');
     return parts.length ? parts.join("  |  ") : "All engineers, customers and activity types";
   }
-  function styledExport(rows) {
+  // Photos for the Excel file: downloaded from Storage and shrunk to small JPEGs, so the file stays light
+  function exportPhotos(rows) {
+    var paths = []; rows.forEach(function (m) { paths = paths.concat(m.photos || []); });
+    var out = {};
+    if (!paths.length) return Promise.resolve(out);
+    toast("Adding " + paths.length + (paths.length === 1 ? " photo" : " photos") + " to the Excel file…");
+    return paths.reduce(function (p, path) {
+      return p.then(function () {
+        return sb.storage.from(BUCKET).download(path).then(function (res) {
+          if (res.error || !res.data) return;
+          return new Promise(function (done) {
+            var url = URL.createObjectURL(res.data), img = new Image();
+            img.onload = function () {
+              var k = Math.min(1, 360 / img.naturalHeight, 480 / img.naturalWidth), c = document.createElement("canvas");
+              c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+              c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+              out[path] = { data: c.toDataURL("image/jpeg", 0.72).split(",")[1], w: c.width, h: c.height };
+              URL.revokeObjectURL(url); done();
+            };
+            img.onerror = function () { URL.revokeObjectURL(url); done(); };
+            img.src = url;
+          });
+        }, function () {});
+      });
+    }, Promise.resolve()).then(function () { return out; });
+  }
+  function styledExport(rows, pics) {
+    pics = pics || {};
+    var hasPics = rows.some(function (m) { return (m.photos || []).some(function (p) { return pics[p]; }); });
     var b = bounds(), me = who(state.user.id), now = new Date();
     var wb = new ExcelJS.Workbook();
     wb.creator = me; wb.created = now; wb.title = "Daily Activity Report";
@@ -620,7 +648,10 @@
 
     // ----- Sheet 1: the activities -----
     var HEAD = ["No", "Date", "Day", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Action", "Status", "Next action"];
-    var WID = [5, 16, 6, 18, 7, 7, 7, 24, 16, 18, 26, 52, 11, 32], N = HEAD.length, HR = 6;
+    var WID = [5, 16, 6, 18, 7, 7, 7, 24, 16, 18, 26, 52, 11, 32];
+    var PIC_H = 96, PIC_W = 128, PIC_COL = 3 * (PIC_W + 6) / 7 + 2;          // three photos side by side in the last column
+    if (hasPics) { HEAD.push("Photos"); WID.push(Math.ceil(PIC_COL)); }
+    var N = HEAD.length, HR = 6, colPx = Math.ceil(PIC_COL) * 7 + 5;
     var ws = wb.addWorksheet("Daily report", { views: [{ state: "frozen", ySplit: HR, showGridLines: false }], pageSetup: page });
     ws.columns = WID.map(function (w) { return { width: w }; });
     titleBlock(ws, N, "Daily Activity Report");
@@ -641,6 +672,18 @@
       });
       row.getCell(2).numFmt = "dd mmm yyyy"; row.getCell(7).numFmt = "0.0";
       var sc = row.getCell(13); sc.fill = fill(ST_FILL[m.status]); sc.font = { name: "Calibri", size: 10.5, bold: true, color: { argb: ST_INK[m.status] } };
+      if (hasPics) {
+        var pc = row.getCell(N); pc.border = box; if (i % 2 === 1) pc.fill = fill(SOFT);
+        var x = 4;
+        (m.photos || []).forEach(function (p) {
+          var im = pics[p]; if (!im) return;
+          var hgt = PIC_H, wid = Math.min(PIC_W, Math.round(im.w * PIC_H / im.h)); if (wid < im.w * PIC_H / im.h) hgt = Math.round(im.h * wid / im.w);
+          var id = wb.addImage({ base64: im.data, extension: "jpeg" });
+          ws.addImage(id, { tl: { col: N - 1 + x / colPx, row: r - 1 + 0.08 }, ext: { width: wid, height: hgt }, editAs: "oneCell" });
+          x += wid + 6;
+        });
+        if (x > 4) row.height = Math.max(row.height || 15, (PIC_H + 10) * 0.75);
+      }
     });
     r++;
     var tr = ws.getRow(r); tr.height = 22;
@@ -706,8 +749,8 @@
     });
   }
   function plainExport(rows) {
-    var aoa = [["Date", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Action", "Status", "Next action"]];
-    rows.forEach(function (m) { var h = hours(m); aoa.push([m.kind === "week" ? "Week " + m.date + " to " + weekEnd(m) : m.date, who(m.by), m.start, m.end, h ? Math.round(h * 100) / 100 : "", m.customer, m.location, m.type, m.machine, m.description, ST_LABEL[m.status], m.next]); });
+    var aoa = [["Date", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Action", "Status", "Next action", "Photos"]];
+    rows.forEach(function (m) { var h = hours(m); aoa.push([m.kind === "week" ? "Week " + m.date + " to " + weekEnd(m) : m.date, who(m.by), m.start, m.end, h ? Math.round(h * 100) / 100 : "", m.customer, m.location, m.type, m.machine, m.description, ST_LABEL[m.status], m.next, (m.photos || []).length || ""]); });
     var ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = [11, 18, 7, 7, 7, 24, 18, 20, 28, 60, 10, 36].map(function (w) { return { wch: w }; });
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Daily report");
@@ -723,7 +766,7 @@
     }
     if (typeof ExcelJS === "undefined") { fallback(); return; }
     btn.disabled = true;
-    Promise.resolve().then(function () { return styledExport(rows); }).catch(fallback).finally(function () { btn.disabled = false; });
+    exportPhotos(rows).catch(function () { return {}; }).then(function (pics) { return styledExport(rows, pics); }).catch(fallback).finally(function () { btn.disabled = false; });
   });
 
   render();
