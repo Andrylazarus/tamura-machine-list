@@ -98,7 +98,8 @@
     return { _id: r.id, date: r.report_date, start: (r.start_time || "").slice(0, 5), end: (r.end_time || "").slice(0, 5),
       customer: r.customer || "", location: r.location || "", type: r.activity_type || "", machine: r.machine || "",
       description: r.description || "", status: ST_LABEL[r.status] ? r.status : "done", next: r.next_action || "",
-      by: r.created_by || "", updatedAt: r.updated_at, kind: r.report_kind === "week" ? "week" : "day" };
+      by: r.created_by || "", updatedAt: r.updated_at, kind: r.report_kind === "week" ? "week" : "day",
+      photos: Array.isArray(r.photos) ? r.photos.filter(function (p) { return typeof p === "string"; }) : [] };
   }
   // A weekly entry covers Monday (its date) to Sunday; it shows when that week overlaps the period
   function weekEnd(m) { return iso(addDays(parse(m.date), 6)); }
@@ -224,7 +225,7 @@
       '<td data-l="Time" class="nw mono">' + esc(time) + (h ? '<div class="sub">' + h + '</div>' : '') + '</td>' +
       '<td data-l="Customer">' + (m.customer ? '<div class="cust">' + esc(m.customer) + '</div>' : dash) + (m.location ? '<div class="sub">' + esc(m.location) + '</div>' : '') + '</td>' +
       '<td data-l="Machine">' + esc(m.machine) + '</td>' +
-      '<td data-l="Action" class="c-action"><div class="desc">' + esc(m.description) + '</div></td>' +
+      '<td data-l="Action" class="c-action"><div class="desc">' + esc(m.description) + '</div>' + (m.photos.length ? '<div class="sub pcount">📷 ' + m.photos.length + (m.photos.length === 1 ? ' photo' : ' photos') + '</div>' : '') + '</td>' +
       '<td data-l="Status"><span class="pill ' + ST_PILL[m.status] + '">' + ST_LABEL[m.status] + '</span></td>' +
       '<td data-l="Next action" class="c-pc">' + (m.next ? '<span class="note">' + esc(m.next) + '</span>' : '') + '</td></tr>';
   }
@@ -360,7 +361,7 @@
     fillWeeks(m && m.kind === "week" ? m.date : ""); $("e_week").value = m && m.kind === "week" ? m.date : iso(mondayOf(new Date())); $("e_week").disabled = !ok;
     $("kindSeg").hidden = !!m; setKind(m ? m.kind : state.view);
     if (m && m.kind === "week") $("editTitle").textContent = (isAdmin() || m.by !== state.user.id ? who(m.by) + " · " : "") + "Week " + weekText(m.date);
-    fillEngineers(m);
+    fillEngineers(m); photoField($("e_photos"), m ? m.photos : [], ok);
     $("extraActs").innerHTML = ""; $("moreActs").hidden = !!m; syncSaveLabel();
     $("delArea").innerHTML = (m && ok) ? '<button class="btn danger" type="button" id="btnDel">Delete</button>' : '';
     $("dlgEdit").showModal();
@@ -411,8 +412,9 @@
         '<label>Status<select data-x="status"><option value="done">Done</option><option value="ongoing">Ongoing</option><option value="pending">Pending</option></select></label>' +
         '<label class="wide"><span class="req">Action (what was done)</span><textarea data-x="description" rows="3" maxlength="4000"></textarea></label>' +
         '<label class="wide">Next action<textarea data-x="next" rows="2" maxlength="2000"></textarea></label>' +
+        '<div class="wide photofield" data-x="photos"></div>' +
       '</fieldset>';
-    $("extraActs").appendChild(el); syncSaveLabel();
+    $("extraActs").appendChild(el); photoField(el.querySelector("[data-x=photos]"), [], true); syncSaveLabel();
     el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     setTimeout(function () { el.querySelector("[data-x=machine]").focus(); }, 60);
   });
@@ -424,6 +426,7 @@
     if (e.target.id === "btnDelNo") $("delArea").innerHTML = '<button class="btn danger" type="button" id="btnDel">Delete</button>';
     if (e.target.id === "btnDelYes") sb.from("daily_reports").delete().eq("id", editing._id).then(function (res) {
       if (res.error) { toast("Could not delete: " + errText(res.error)); return; }
+      removePhotos(editing.photos);
       state.docs.delete(editing._id); render(); todayBar(); $("dlgEdit").close(); toast("Activity deleted");
     });
   });
@@ -453,17 +456,120 @@
         rowsToAdd.push(extra);
       }
     }
-    var btn = $("btnSave"); btn.disabled = true;
-    var q = editing ? sb.from("daily_reports").update(row).eq("id", editing._id).select() : sb.from("daily_reports").insert(rowsToAdd).select();
-    q.then(function (res) {
-      if (res.error) { toast("Could not save: " + errText(res.error)); return; }
+    // Photos: one field per activity, in the same order as rowsToAdd
+    var fields = [$("e_photos")._photos];
+    if (!editing) Array.prototype.forEach.call($("extraActs").querySelectorAll(".xact [data-x=photos]"), function (f) { fields.push(f._photos); });
+    var btn = $("btnSave"), label = btn.textContent, uploaded = [];
+    btn.disabled = true;
+    var pending = fields.reduce(function (n, f) { return n + (f ? f.add.length : 0); }, 0);
+    if (pending) btn.textContent = "Uploading " + pending + (pending === 1 ? " photo…" : " photos…");
+    fields.reduce(function (p, f, i) {
+      return p.then(function () {
+        if (!f) return;
+        return uploadPhotos(f).then(function (paths) {
+          uploaded = uploaded.concat(paths.added);
+          if (paths.all.length || (editing && editing.photos.length)) rowsToAdd[i].photos = paths.all;
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      btn.textContent = label;
+      return editing ? sb.from("daily_reports").update(row).eq("id", editing._id).select() : sb.from("daily_reports").insert(rowsToAdd).select();
+    }).then(function (res) {
+      if (res.error) { removePhotos(uploaded); toast("Could not save: " + errText(res.error)); return; }
+      if (editing && fields[0]) removePhotos(fields[0].removed);
       var b = bounds(), list = res.data || [], inside = true;
       list.forEach(function (r) { var o = fromRow(r); if (inRange(o, b)) state.docs.set(o._id, o); else { state.docs.delete(o._id); inside = false; } });
       render(); todayBar(); $("dlgEdit").close();
       toast(!inside ? "Saved. It is outside the period shown, so change the period to see it."
                     : editing ? "Activity updated" : list.length > 1 ? list.length + " activities added" : "Activity added");
-    }).finally(function () { btn.disabled = false; });
+    }).catch(function (err) {
+      removePhotos(uploaded);
+      toast("Could not save: " + photoErr(err));
+    }).finally(function () { btn.disabled = false; btn.textContent = label; });
   });
+
+  // ---------- photos (Supabase Storage, bucket "daily-photos") ----------
+  var MAX_PHOTOS = 3, BUCKET = "daily-photos", signed = {};
+  function photoErr(err) {
+    var m = (err && (err.message || err.error)) || String(err);
+    if (/bucket not found|not found|photos/i.test(m) && !/read/i.test(m)) return "Photos are not switched on yet. An admin has to run supabase/daily-photos.sql in the Supabase SQL Editor.";
+    return m;
+  }
+  // Shrink a phone photo to at most 1600 px on its long side, as JPEG (about 200–300 KB)
+  function compress(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        var g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { if (b) res(b); else rej(new Error("Could not read that photo.")); }, "image/jpeg", 0.75);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error("That file is not a photo this browser can read.")); };
+      img.src = url;
+    });
+  }
+  function signedUrls(paths) {
+    var need = paths.filter(function (p) { return !signed[p] || signed[p].until < Date.now(); });
+    if (!need.length) return Promise.resolve();
+    return sb.storage.from(BUCKET).createSignedUrls(need, 3600).then(function (res) {
+      (res.data || []).forEach(function (d) { if (d.signedUrl) signed[d.path] = { url: d.signedUrl, until: Date.now() + 3300000 }; });
+    });
+  }
+  // A photo field: shows the saved photos, lets you add (up to 3 in all) and remove them
+  function photoField(box, existing, editable) {
+    var st = { keep: (existing || []).slice(), add: [], removed: [] };
+    box._photos = editable ? st : null;
+    box.hidden = !editable && !st.keep.length;
+    function draw() {
+      var n = st.keep.length + st.add.length, html = '<span class="plabel">Photos <small>' + (editable ? "up to " + MAX_PHOTOS : "") + '</small></span><div class="pgrid">';
+      st.keep.forEach(function (p, i) {
+        var u = signed[p] ? signed[p].url : "";
+        html += '<div class="pthumb">' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener"><img src="' + esc(u) + '" alt="Photo ' + (i + 1) + '"></a>' : '<span class="pload">…</span>') +
+                (editable ? '<button type="button" class="pdel" data-keep="' + i + '" aria-label="Remove photo">×</button>' : '') + '</div>';
+      });
+      st.add.forEach(function (a, i) {
+        html += '<div class="pthumb new"><img src="' + a.url + '" alt="New photo ' + (i + 1) + '"><button type="button" class="pdel" data-add="' + i + '" aria-label="Remove photo">×</button></div>';
+      });
+      if (editable && n < MAX_PHOTOS) html += '<button type="button" class="padd"><span>📷</span>Add photo</button>';
+      html += '</div><input type="file" accept="image/*" multiple hidden>';
+      box.innerHTML = html;
+    }
+    box.onclick = function (e) {
+      var d = e.target.closest(".pdel");
+      if (d) {
+        if (d.dataset.keep != null) st.removed.push(st.keep.splice(+d.dataset.keep, 1)[0]);
+        else { var a = st.add.splice(+d.dataset.add, 1)[0]; URL.revokeObjectURL(a.url); }
+        draw(); return;
+      }
+      if (e.target.closest(".padd")) box.querySelector("input[type=file]").click();
+    };
+    box.onchange = function (e) {
+      if (e.target.type !== "file") return;
+      var files = Array.prototype.slice.call(e.target.files || []), room = MAX_PHOTOS - st.keep.length - st.add.length;
+      if (files.length > room) toast("Up to " + MAX_PHOTOS + " photos per activity. Only the first " + room + " were added.");
+      files.slice(0, room).reduce(function (p, f) {
+        return p.then(function () { return compress(f).then(function (b) { st.add.push({ blob: b, url: URL.createObjectURL(b) }); draw(); }); });
+      }, Promise.resolve()).catch(function (err) { toast(err.message || String(err)); });
+    };
+    draw();
+    if (st.keep.length) signedUrls(st.keep).then(draw, function () {});
+  }
+  function uploadPhotos(st) {
+    var me = state.user.id, added = [];
+    return st.add.reduce(function (p, a) {
+      return p.then(function () {
+        var path = me + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+        return sb.storage.from(BUCKET).upload(path, a.blob, { contentType: "image/jpeg", upsert: false }).then(function (res) {
+          if (res.error) throw res.error;
+          added.push(path);
+        });
+      });
+    }, Promise.resolve()).then(function () { return { added: added, all: st.keep.concat(added) }; },
+                               function (err) { removePhotos(added); throw err; });
+  }
+  function removePhotos(paths) { if (paths && paths.length) sb.storage.from(BUCKET).remove(paths).then(function () {}, function () {}); }
 
   // ---------- export ----------
   // A formatted workbook (ExcelJS): report header, styled table, totals, sign-off block and a per-engineer summary.

@@ -410,3 +410,17 @@ table.daily .c-action .desc{margin-top:0}
   table.daily tr.row .c-action{grid-column:1/-1;order:-2}
   table.daily tr.row .c-action::before{display:none}
 }
+/* Daily report: photos on an activity */
+.photofield{display:flex;flex-direction:column;gap:6px}
+.photofield[hidden]{display:none}
+.photofield .plabel{font-size:13px;font-weight:500;color:var(--muted)}
+.photofield .plabel small{font-weight:400}
+.pgrid{display:flex;flex-wrap:wrap;gap:10px}
+.pthumb{position:relative;width:96px;height:96px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2)}
+.pthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pthumb .pload{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--muted)}
+.pthumb .pdel{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(17,26,39,.75);color:#fff;font-size:17px;line-height:1;cursor:pointer;min-height:0;padding:0}
+.padd{width:96px;height:96px;border-radius:10px;border:1.5px dashed var(--line);background:var(--surface);color:var(--accent);font:inherit;font-size:12.5px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer}
+.padd span{font-size:22px}
+.padd:hover{border-color:var(--accent);background:var(--accent-soft)}
+.pcount{margin-top:4px}
