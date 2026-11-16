@@ -225,7 +225,7 @@
       '<td data-l="Time" class="nw mono">' + esc(time) + (h ? '<div class="sub">' + h + '</div>' : '') + '</td>' +
       '<td data-l="Customer">' + (m.customer ? '<div class="cust">' + esc(m.customer) + '</div>' : dash) + (m.location ? '<div class="sub">' + esc(m.location) + '</div>' : '') + '</td>' +
       '<td data-l="Machine">' + esc(m.machine) + '</td>' +
-      '<td data-l="Action" class="c-action"><div class="desc">' + esc(m.description) + '</div>' + (m.photos.length ? '<div class="sub pcount">📷 ' + m.photos.length + (m.photos.length === 1 ? ' photo' : ' photos') + '</div>' : '') + '</td>' +
+      '<td data-l="Action" class="c-action"><div class="desc">' + esc(m.description) + '</div>' + (m.photos.length ? '<div class="sub pcount">📷 ' + m.photos.length + (m.photos.length === 1 ? ' photo' : ' photos') + (function (t) { return t ? ' · ' + fmtSize(t) : ''; })(m.photos.reduce(function (t, p) { return t + photoBytes(p); }, 0)) + '</div>' : '') + '</td>' +
       '<td data-l="Status"><span class="pill ' + ST_PILL[m.status] + '">' + ST_LABEL[m.status] + '</span></td>' +
       '<td data-l="Next action" class="c-pc">' + (m.next ? '<span class="note">' + esc(m.next) + '</span>' : '') + '</td></tr>';
   }
@@ -510,27 +510,27 @@
       img.src = url;
     });
   }
-  function signedUrls(paths) {
-    var need = paths.filter(function (p) { return !signed[p] || signed[p].until < Date.now(); });
-    if (!need.length) return Promise.resolve();
-    return sb.storage.from(BUCKET).createSignedUrls(need, 3600).then(function (res) {
-      (res.data || []).forEach(function (d) { if (d.signedUrl) signed[d.path] = { url: d.signedUrl, until: Date.now() + 3300000 }; });
-    });
-  }
+  // Photos are in a public bucket: each one has a fixed link
+  function photoUrl(p) { if (!signed[p]) signed[p] = sb.storage.from(BUCKET).getPublicUrl(p).data.publicUrl; return signed[p]; }
+  // The size is part of the file name (…-245760.jpg), so it shows without downloading the photo
+  function photoBytes(p) { var m = /-(\d+)\.jpg$/.exec(p); return m ? +m[1] : 0; }
+  function fmtSize(b) { return b >= 1048576 ? (Math.round(b / 104857.6) / 10) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB"; }
   // A photo field: shows the saved photos, lets you add (up to 3 in all) and remove them
   function photoField(box, existing, editable) {
     var st = { keep: (existing || []).slice(), add: [], removed: [] };
     box._photos = editable ? st : null;
     box.hidden = !editable && !st.keep.length;
     function draw() {
-      var n = st.keep.length + st.add.length, html = '<span class="plabel">Photos <small>' + (editable ? "up to " + MAX_PHOTOS : "") + '</small></span><div class="pgrid">';
+      var n = st.keep.length + st.add.length, total = st.keep.reduce(function (t, p) { return t + photoBytes(p); }, 0) + st.add.reduce(function (t, a) { return t + a.blob.size; }, 0);
+      var html = '<span class="plabel">Photos <small>' + (editable ? "up to " + MAX_PHOTOS : "") + (total ? " · " + fmtSize(total) + " in all" : "") + '</small></span><div class="pgrid">';
       st.keep.forEach(function (p, i) {
-        var u = signed[p] ? signed[p].url : "";
-        html += '<div class="pthumb">' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener"><img src="' + esc(u) + '" alt="Photo ' + (i + 1) + '"></a>' : '<span class="pload">…</span>') +
+        var u = photoUrl(p), sz = photoBytes(p);
+        html += '<div class="pthumb"><a href="' + esc(u) + '" target="_blank" rel="noopener"><img src="' + esc(u) + '" alt="Photo ' + (i + 1) + '"></a>' +
+                (sz ? '<span class="psize">' + fmtSize(sz) + '</span>' : '') +
                 (editable ? '<button type="button" class="pdel" data-keep="' + i + '" aria-label="Remove photo">×</button>' : '') + '</div>';
       });
       st.add.forEach(function (a, i) {
-        html += '<div class="pthumb new"><img src="' + a.url + '" alt="New photo ' + (i + 1) + '"><button type="button" class="pdel" data-add="' + i + '" aria-label="Remove photo">×</button></div>';
+        html += '<div class="pthumb new"><img src="' + a.url + '" alt="New photo ' + (i + 1) + '"><span class="psize">' + fmtSize(a.blob.size) + (a.orig ? ' <s>' + fmtSize(a.orig) + '</s>' : '') + '</span><button type="button" class="pdel" data-add="' + i + '" aria-label="Remove photo">×</button></div>';
       });
       if (editable && n < MAX_PHOTOS) html += '<button type="button" class="padd"><span>📷</span>Add photo</button>';
       html += '</div><input type="file" accept="image/*" multiple hidden>';
@@ -550,17 +550,16 @@
       var files = Array.prototype.slice.call(e.target.files || []), room = MAX_PHOTOS - st.keep.length - st.add.length;
       if (files.length > room) toast("Up to " + MAX_PHOTOS + " photos per activity. Only the first " + room + " were added.");
       files.slice(0, room).reduce(function (p, f) {
-        return p.then(function () { return compress(f).then(function (b) { st.add.push({ blob: b, url: URL.createObjectURL(b) }); draw(); }); });
+        return p.then(function () { return compress(f).then(function (b) { st.add.push({ blob: b, url: URL.createObjectURL(b), orig: f.size > b.size ? f.size : 0 }); draw(); }); });
       }, Promise.resolve()).catch(function (err) { toast(err.message || String(err)); });
     };
     draw();
-    if (st.keep.length) signedUrls(st.keep).then(draw, function () {});
   }
   function uploadPhotos(st) {
     var me = state.user.id, added = [];
     return st.add.reduce(function (p, a) {
       return p.then(function () {
-        var path = me + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+        var path = me + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "-" + a.blob.size + ".jpg";
         return sb.storage.from(BUCKET).upload(path, a.blob, { contentType: "image/jpeg", upsert: false }).then(function (res) {
           if (res.error) throw res.error;
           added.push(path);
