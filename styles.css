@@ -382,3 +382,16 @@ table.att td.c-sum{display:none}
 .expkind small{color:var(--muted);font-size:12.5px;font-weight:400}
 #x_weekL,#x_monthL{grid-column:span 2}
 @media (max-width:720px){#x_weekL,#x_monthL{grid-column:1/-1}}
+
+/* ---------- Daily report: daily or weekly entry ---------- */
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg[hidden]{display:none}
+.seg button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;cursor:pointer}
+.seg button b{font-size:15px}
+.seg button small{font-size:12.5px;color:var(--muted)}
+.seg button[aria-checked="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+.seg button[aria-checked="true"] b{color:var(--accent)}
+.is-week .daytime,.is-week .xact label:has([data-x=start]),.is-week .xact label:has([data-x=end]){display:none}
+#e_weekL.span2{grid-column:span 2}
+.pill.wk{background:var(--accent-soft);color:var(--accent)}
+@media (max-width:720px){#e_weekL.span2{grid-column:1/-1}.seg button{padding:10px 12px}}

@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="../styles.css?v=20261116a">
+<link rel="stylesheet" href="../styles.css?v=20261116d">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -154,10 +154,15 @@
   <form class="dlg" id="editForm" method="dialog">
     <div class="dlg-head"><h2 id="editTitle">Add activity</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
     <div class="dlg-body">
+      <div class="seg" id="kindSeg" role="radiogroup" aria-label="Report for">
+        <button type="button" role="radio" data-kind="day" aria-checked="true"><b>Daily</b><small>What I did on one day</small></button>
+        <button type="button" role="radio" data-kind="week" aria-checked="false"><b>Weekly</b><small>What I did during a week</small></button>
+      </div>
       <fieldset><legend>When</legend>
-        <label><span class="req">Date</span><input id="e_date" type="date" required></label>
-        <label>Start<input id="e_start" type="time"></label>
-        <label>End<input id="e_end" type="time"></label>
+        <label id="e_dateL"><span class="req">Date</span><input id="e_date" type="date"></label>
+        <label id="e_weekL" class="span2" hidden><span class="req">Week</span><select id="e_week"></select></label>
+        <label class="daytime">Start<input id="e_start" type="time"></label>
+        <label class="daytime">End<input id="e_end" type="time"></label>
       </fieldset>
       <fieldset><legend>Where</legend>
         <label>Customer<input id="e_customer" list="custList" autocomplete="off" maxlength="160" placeholder="Customer, or Office"></label>
@@ -175,7 +180,7 @@
       <div id="moreActs" class="moreacts">
         <button class="btn" type="button" id="btnMoreAct">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add another activity</button>
-        <span class="help">Did more than one job this day? Add each one here and save them all together.</span>
+        <span class="help" id="moreHelp">Did more than one job this day? Add each one here and save them all together.</span>
       </div>
       <p class="help" id="editMeta"></p>
     </div>
@@ -193,6 +198,6 @@
 <datalist id="typeList"><option value="Service / repair"><option value="Calibration"><option value="Installation"><option value="Preventive maintenance"><option value="Troubleshooting"><option value="Training"><option value="Programming"><option value="Remote support"><option value="Meeting"><option value="Office work"><option value="Travel"><option value="Leave"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="daily.js?v=20261116c"></script>
+<script src="daily.js?v=20261116d"></script>
 </body>
 </html>
