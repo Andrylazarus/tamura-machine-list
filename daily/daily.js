@@ -6,7 +6,7 @@
   var ST_LABEL = { done: "Done", ongoing: "Ongoing", pending: "Pending" }, ST_PILL = { done: "ok", ongoing: "warn", pending: "none" };
   var FACETS = [{ k: "by", label: "Engineer" }, { k: "customer", label: "Customer" }, { k: "type", label: "Type of activity" }, { k: "status", label: "Status" }];
   var KIND_LABEL = { day: "Daily", week: "Weekly" };
-  var NCOLS = 8;
+  var NCOLS = 9;
 
   var state = { docs: new Map(), q: "", group: "date", range: "last7", from: "", to: "", shut: new Set(), shutFacet: {},
                 sel: { by: new Set(), kind: new Set(), customer: new Set(), type: new Set(), status: new Set() },
@@ -218,12 +218,13 @@
   function rowHtml(m) {
     var time = m.start ? m.start + (m.end ? "–" + m.end : "") : "", h = fmtHours(hours(m)), dash = '<span class="muted">—</span>';
     return '<tr class="row" data-id="' + esc(m._id) + '" tabindex="0">' +
-      '<td class="c-kind">' + (m.type ? '<span class="kind">' + esc(m.type) + '</span>' : '') + '<div class="desc">' + esc(m.description) + '</div></td>' +
+      '<td class="c-kind">' + (m.type ? '<span class="kind">' + esc(m.type) + '</span>' : dash) + '</td>' +
       '<td data-l="Date" class="nw">' + (m.kind === "week" ? '<span class="pill wk">Weekly</span><div class="sub">' + esc(weekText(m.date)) + '</div>' : esc(fmtShort(m.date))) + '</td>' +
       '<td data-l="Engineer" class="nw">' + esc(who(m.by)) + '</td>' +
       '<td data-l="Time" class="nw mono">' + esc(time) + (h ? '<div class="sub">' + h + '</div>' : '') + '</td>' +
       '<td data-l="Customer">' + (m.customer ? '<div class="cust">' + esc(m.customer) + '</div>' : dash) + (m.location ? '<div class="sub">' + esc(m.location) + '</div>' : '') + '</td>' +
       '<td data-l="Machine">' + esc(m.machine) + '</td>' +
+      '<td data-l="Action" class="c-action"><div class="desc">' + esc(m.description) + '</div></td>' +
       '<td data-l="Status"><span class="pill ' + ST_PILL[m.status] + '">' + ST_LABEL[m.status] + '</span></td>' +
       '<td data-l="Next action" class="c-pc">' + (m.next ? '<span class="note">' + esc(m.next) + '</span>' : '') + '</td></tr>';
   }
@@ -408,7 +409,7 @@
         '<label>Machine<input data-x="machine" list="machList" autocomplete="off" maxlength="200" placeholder="Brand, model, serial"></label>' +
         '<label>Type of activity<input data-x="type" list="typeList" autocomplete="off" maxlength="60" placeholder="Service, Calibration…"></label>' +
         '<label>Status<select data-x="status"><option value="done">Done</option><option value="ongoing">Ongoing</option><option value="pending">Pending</option></select></label>' +
-        '<label class="wide"><span class="req">What was done</span><textarea data-x="description" rows="3" maxlength="4000"></textarea></label>' +
+        '<label class="wide"><span class="req">Action (what was done)</span><textarea data-x="description" rows="3" maxlength="4000"></textarea></label>' +
         '<label class="wide">Next action<textarea data-x="next" rows="2" maxlength="2000"></textarea></label>' +
       '</fieldset>';
     $("extraActs").appendChild(el); syncSaveLabel();
@@ -512,7 +513,7 @@
                  margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.3, footer: 0.3 } };
 
     // ----- Sheet 1: the activities -----
-    var HEAD = ["No", "Date", "Day", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Activity", "Status", "Next action"];
+    var HEAD = ["No", "Date", "Day", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Action", "Status", "Next action"];
     var WID = [5, 16, 6, 18, 7, 7, 7, 24, 16, 18, 26, 52, 11, 32], N = HEAD.length, HR = 6;
     var ws = wb.addWorksheet("Daily report", { views: [{ state: "frozen", ySplit: HR, showGridLines: false }], pageSetup: page });
     ws.columns = WID.map(function (w) { return { width: w }; });
@@ -599,7 +600,7 @@
     });
   }
   function plainExport(rows) {
-    var aoa = [["Date", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "What was done", "Status", "Next action"]];
+    var aoa = [["Date", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Action", "Status", "Next action"]];
     rows.forEach(function (m) { var h = hours(m); aoa.push([m.kind === "week" ? "Week " + m.date + " to " + weekEnd(m) : m.date, who(m.by), m.start, m.end, h ? Math.round(h * 100) / 100 : "", m.customer, m.location, m.type, m.machine, m.description, ST_LABEL[m.status], m.next]); });
     var ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = [11, 18, 7, 7, 7, 24, 18, 20, 28, 60, 10, 36].map(function (w) { return { wch: w }; });

@@ -401,3 +401,12 @@ table.att td.c-sum{display:none}
 .tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
 .tab .n{font-size:11px;font-weight:600;background:var(--none-soft);color:var(--muted);border-radius:999px;padding:1px 7px}
 .tab[aria-selected="true"] .n{background:var(--accent-soft);color:var(--accent)}
+/* Daily report: Type and Action in separate columns */
+table.daily .c-kind{min-width:120px;max-width:170px}
+table.daily .c-action{min-width:260px;max-width:420px}
+table.daily .c-action .desc{margin-top:0}
+@media (max-width:720px){
+  table.daily tr.row .c-kind{order:-3;display:block}
+  table.daily tr.row .c-action{grid-column:1/-1;order:-2}
+  table.daily tr.row .c-action::before{display:none}
+}
