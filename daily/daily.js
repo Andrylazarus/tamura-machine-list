@@ -7,7 +7,7 @@
   var FACETS = [{ k: "by", label: "Engineer" }, { k: "customer", label: "Customer" }, { k: "type", label: "Type of activity" }, { k: "status", label: "Status" }];
   var NCOLS = 8;
 
-  var state = { docs: new Map(), q: "", group: "date", range: "week", from: "", to: "", shut: new Set(), shutFacet: {},
+  var state = { docs: new Map(), q: "", group: "date", range: "last7", from: "", to: "", shut: new Set(), shutFacet: {},
                 sel: { by: new Set(), customer: new Set(), type: new Set(), status: new Set() },
                 people: {}, machines: [], role: null, user: null, ready: false, channel: null };
   function isAdmin() { return state.role === "admin"; }
@@ -36,6 +36,7 @@
     if (r === "today") return [today, today];
     if (r === "week") { var mon = addDays(t, -((t.getDay() + 6) % 7)); return [iso(mon), iso(addDays(mon, 6))]; }
     if (r === "last7") return [iso(addDays(t, -6)), today];
+    if (r === "last30") return [iso(addDays(t, -29)), today];
     if (r === "month") return [iso(new Date(t.getFullYear(), t.getMonth(), 1)), iso(new Date(t.getFullYear(), t.getMonth() + 1, 0))];
     if (r === "lastmonth") return [iso(new Date(t.getFullYear(), t.getMonth() - 1, 1)), iso(new Date(t.getFullYear(), t.getMonth(), 0))];
     var a = state.from || today, b = state.to || a; return a <= b ? [a, b] : [b, a];
@@ -97,7 +98,18 @@
   // Names for the Engineer column, and customers / machines from the Machine List as suggestions
   function loadLookups() {
     sb.rpc("people").then(function (pp) {
-      if (pp.error) return; var p = {}; (pp.data || []).forEach(function (u) { p[u.id] = u.name; }); state.people = p; if (state.ready) render();
+      if (!pp.error) return (pp.data || []).map(function (u) { return { id: u.id, name: u.name }; });
+      // people() comes with supabase/permissions.sql; without it, take the names from the task board's member list
+      return sb.rpc("team_members").then(function (tm) {
+        return tm.error ? [] : (tm.data || []).map(function (u) {
+          var n = String(u.email || "").split("@")[0].replace(/[._-]+/g, " ").trim();
+          return { id: u.id, name: n.replace(/\b[a-z]/g, function (ch) { return ch.toUpperCase(); }) };
+        });
+      });
+    }).then(function (list) {
+      if (!list.length) return;
+      var p = {}; list.forEach(function (u) { if (u.name) p[u.id] = u.name; }); state.people = p;
+      if (state.ready) { render(); todayBar(); }
     });
     sb.from("machines").select("customer,location,brand,model,serial").range(0, 4999).then(function (res) {
       if (res.error) return; state.machines = res.data || []; fillLists();
@@ -145,7 +157,7 @@
 
   // ---------- helpers ----------
   function all() { return Array.from(state.docs.values()); }
-  function who(id) { if (!id) return "Former user"; return state.people[id] || (state.user && id === state.user.id ? "You" : "Former user"); }
+  function who(id) { if (!id) return "Former user"; return state.people[id] || (state.user && id === state.user.id ? "You" : "Unknown user"); }
   function fval(m, k) { return (m[k] || "").trim(); }
   function flabel(k, v) { return k === "by" ? who(v) : k === "status" ? ST_LABEL[v] : (v || "Not set"); }
   function matches(m, skip) {

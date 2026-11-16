@@ -3,8 +3,8 @@
 -- Run this once in Supabase: Dashboard → SQL Editor → New query → Run.
 -- Safe to run again.
 --
---   admin  (the owner account only): sees and edits everything, deletes,
---          imports Excel, manages users
+--   admin  (the owner account, plus anyone the owner makes admin under Users):
+--          sees and edits everything, deletes, imports Excel, manages users
 --   viewer (every other approved account): sees everything, adds machines,
 --          and edits only the machines that account added itself.
 --          A machine added by a viewer waits for the admin's approval;
@@ -40,7 +40,8 @@ create policy "machines: admin or creator update" on public.machines
   );
 -- Deleting stays with the admin ("machines: admin delete" in schema.sql).
 
--- 3. Make the owner account the only admin. The owner is matched by the
+-- 3. Make sure the owner account is an admin. Other admins the owner has chosen
+--    under Users are left as they are. The owner is matched by the
 --    SHA-256 of its email (same value as OWNER_ID in js/config.js), so the
 --    address is not written in this public file. If no account matches,
 --    this step stops with an error and changes no roles.
@@ -58,9 +59,6 @@ begin
   update public.profiles set role = 'admin'
    where encode(sha256(convert_to(lower(trim(email)), 'UTF8')), 'hex') = owner_id;
 
-  update public.profiles set role = 'viewer'
-   where role = 'admin'
-     and encode(sha256(convert_to(lower(trim(coalesce(email, ''))), 'UTF8')), 'hex') <> owner_id;
 end;
 $$;
 
