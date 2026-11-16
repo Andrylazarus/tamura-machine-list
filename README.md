@@ -151,3 +151,13 @@ Setup, once:
 3. Test it: **Actions → Daily task email → Run workflow**. With *dry run* ticked, it only lists who would get an email. Untick it to really send.
 
 To change the time, edit the `cron` line in the workflow file. It is in UTC, so 06:00 WIB is `0 23 * * *` (23:00 UTC the day before). To change what counts as "due soon", edit `DUE_SOON_DAYS`.
+
+## Backup
+Supabase Free has no automatic backups, so `.github/workflows/backup.yml` makes one every Sunday night (23:37 WIB).
+It reads every table and emails three files: `tamura-backup-<date>.json.gz` (everything, for restoring) and
+`attendance-<date>.csv` / `daily-report-<date>.csv` (open in Excel). Nothing is stored in this public repository.
+
+- Recipient: repository secret `BACKUP_TO` (comma separated). Without it the email goes to `SMTP_USER`.
+- Run it any time: **Actions → Weekly backup → Run workflow**.
+- It uses the same `SUPABASE_SERVICE_ROLE_KEY`, `SMTP_USER` and `SMTP_PASS` secrets as the daily task email.
+
