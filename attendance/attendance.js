@@ -48,7 +48,8 @@
   function hm(ts) { if (!ts) return ""; var d = new Date(ts); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
   function fmtHours(h) { return h ? (Math.round(h * 10) / 10) + " h" : ""; }
   function atLabel(st) { return AT_LABEL[st] + " (" + AT_ID[st] + ")"; }
-  function fromRow(r) { return { _id: r.id, user: r.user_id, date: r.work_date, status: AT_LABEL[r.status] ? r.status : "present", inAt: r.check_in, outAt: r.check_out, note: r.note || "", updatedAt: r.updated_at }; }
+  function fromRow(r) { return { _id: r.id, user: r.user_id, date: r.work_date, status: AT_LABEL[r.status] ? r.status : "present", inAt: r.check_in, outAt: r.check_out, customer: r.customer || "", note: r.note || "", updatedAt: r.updated_at }; }
+  function at(a) { return a && a.customer ? " at " + a.customer : ""; }
   function hours(a) { return a && a.inAt && a.outAt ? Math.max(0, (new Date(a.outAt) - new Date(a.inAt)) / 3600000) : 0; }
   function key(u, d) { return u + "|" + d; }
   function name(id) { if (!id) return "Former user"; return state.team[id] || (state.user && id === state.user.id ? "You" : "Former user"); }
@@ -85,7 +86,7 @@
       });
       $("btnAdd").hidden = !isAdmin();
       $("lede").textContent = isAdmin() ? "Everyone's attendance. As admin you can add or correct any entry; click a row." : "Check in when you start work and check out when you finish. Everyone on the team can see the list.";
-      show("viewApp"); loadTeam(); load(); loadToday(); subscribe();
+      show("viewApp"); loadTeam(); loadCustomers(); load(); loadToday(); subscribe();
     });
   }
   show("viewLogin");
@@ -107,6 +108,15 @@
       $("fUser").innerHTML = '<option value="">Everyone</option>' + Object.keys(t).sort(function (a, b) { return natural(t[a], t[b]); })
         .map(function (id) { return '<option value="' + esc(id) + '">' + esc(t[id]) + '</option>'; }).join("");
       $("fUser").value = cur; render(); renderToday();
+    });
+  }
+  // Customers from the Machine List (and ones typed before), as suggestions
+  function loadCustomers() {
+    sb.from("machines").select("customer").range(0, 4999).then(function (res) {
+      var o = { Office: 1 };
+      (res.data || []).forEach(function (m) { if (m.customer) o[String(m.customer).trim()] = 1; });
+      state.att.forEach(function (a) { if (a.customer) o[a.customer] = 1; });
+      $("custList").innerHTML = Object.keys(o).sort(natural).map(function (c) { return '<option value="' + esc(c) + '">'; }).join("");
     });
   }
   var seq = 0;
@@ -154,17 +164,17 @@
   function myCard() {
     var card = $("attendCard");
     if (state.off || !state.user) { card.hidden = true; return; }
-    card.hidden = false;
+    card.hidden = false; $("attCustL").hidden = !!state.mine;
     var a = state.mine, cls = "none", st, sub, btn;
     $("attDay").textContent = "My attendance · " + fmtDay(iso(new Date()));
     if (!a) {
-      st = "Not checked in yet"; sub = "Check in when you start work. Sick, permission or leave? Report it here instead.";
+      st = "Not checked in yet"; sub = "Fill in where you work today, then check in. Sick, permission or leave? Report it instead.";
       btn = '<button class="btn primary" type="button" data-att="in">Check in</button><button class="btn" type="button" data-att="away">Sick / permission / leave</button>';
     } else if (a.status === "present" && !a.outAt) {
-      cls = "in"; st = "Checked in at " + hm(a.inAt); sub = a.note || "Check out when you finish work.";
+      cls = "in"; st = "Checked in " + hm(a.inAt) + at(a); sub = a.note || "Check out when you finish work.";
       btn = '<button class="btn primary" type="button" data-att="out">Check out</button><button class="btn" type="button" data-att="edit">Change</button>';
     } else if (a.status === "present") {
-      cls = "out"; st = "In " + hm(a.inAt) + " · Out " + hm(a.outAt) + " · " + (fmtHours(hours(a)) || "0 h"); sub = a.note || "Done for today.";
+      cls = "out"; st = "In " + hm(a.inAt) + " · Out " + hm(a.outAt) + " · " + (fmtHours(hours(a)) || "0 h"); sub = [a.customer, a.note].filter(Boolean).join(" · ") || "Done for today.";
       btn = '<button class="btn" type="button" data-att="edit">Change</button>';
     } else {
       cls = a.status === "absent" ? "none" : "away"; st = atLabel(a.status); sub = a.note || "Reported for today.";
@@ -175,16 +185,18 @@
   $("attButtons").addEventListener("click", function (e) {
     var b = e.target.closest("[data-att]"); if (!b) return;
     var act = b.dataset.att, a = state.mine, today = iso(new Date());
+    if (act === "in" && !$("attCust").value.trim()) { toast("Fill in where you work today (customer, or Office)."); $("attCust").focus(); return; }
     if (act === "away") { openAtt(null, { user: state.user.id, date: today, status: "sick" }); return; }
     if (act === "edit") { openAtt(a); return; }
     b.disabled = true;
     var q = act === "in"
-      ? sb.from("attendance").insert({ user_id: state.user.id, work_date: today, status: "present", check_in: new Date().toISOString() }).select().single()
+      ? sb.from("attendance").insert({ user_id: state.user.id, work_date: today, status: "present", check_in: new Date().toISOString(), customer: $("attCust").value.trim() }).select().single()
       : sb.from("attendance").update({ check_out: new Date().toISOString() }).eq("id", a._id).select().single();
     q.then(function (res) {
       if (res.error) { toast("Could not save: " + errText(res.error)); if (res.error.code === "23505") loadToday(); return; }
       var o = fromRow(res.data); keep(o);
-      toast(act === "in" ? "Checked in at " + hm(o.inAt) : "Checked out at " + hm(o.outAt) + " · " + (fmtHours(hours(o)) || "0 h"));
+      if (act === "in") $("attCust").value = "";
+      toast(act === "in" ? "Checked in " + hm(o.inAt) + at(o) : "Checked out at " + hm(o.outAt) + " · " + (fmtHours(hours(o)) || "0 h"));
     }).finally(function () { b.disabled = false; });
   });
 
@@ -229,10 +241,12 @@
       '<td data-l="Engineer" class="nw"><strong>' + esc(name(r.user)) + '</strong></td>' +
       '<td data-l="Date" class="nw">' + esc(fmtShort(r.date)) + '</td>' +
       '<td data-l="Attendance">' + pill + '</td>' +
+      '<td data-l="Customer">' + esc(a ? a.customer : "") + '</td>' +
       '<td data-l="Check in" class="nw mono">' + esc(a ? hm(a.inAt) : "") + '</td>' +
       '<td data-l="Check out" class="nw mono">' + esc(a ? hm(a.outAt) : "") + '</td>' +
       '<td data-l="Hours" class="nw mono">' + esc(a ? fmtHours(hours(a)) : "") + '</td>' +
-      '<td data-l="Note" class="c-pc">' + (a && a.note ? '<span class="note">' + esc(a.note) + '</span>' : '') + '</td></tr>';
+      '<td data-l="Note" class="c-pc">' + (a && a.note ? '<span class="note">' + esc(a.note) + '</span>' : '') + '</td>' +
+      '<td class="c-sum">' + esc(a ? [a.inAt ? hm(a.inAt) + (a.outAt ? "–" + hm(a.outAt) : "") : "", fmtHours(hours(a)), a.customer].filter(Boolean).join(" · ") : "") + (a && a.note ? '<div class="sub">' + esc(a.note) + '</div>' : '') + '</td></tr>';
   }
   function render() {
     var rows = state.shown = state.off ? [] : rowsFor(), cnt = {}, miss = 0, html = "", cur = null;
@@ -241,7 +255,7 @@
       if (r.date !== cur) {
         cur = r.date;
         var day = rows.filter(function (x) { return x.date === cur; }), pres = day.filter(function (x) { return x.rec && x.rec.status === "present"; }).length;
-        html += '<tr class="grp" style="cursor:default"><td colspan="7"><div class="grp-in"><strong>' + esc(fmtDay(cur)) + '</strong><span class="n">' + pres + ' of ' + day.length + ' present</span></div></td></tr>';
+        html += '<tr class="grp" style="cursor:default"><td colspan="9"><div class="grp-in"><strong>' + esc(fmtDay(cur)) + '</strong><span class="n">' + pres + ' of ' + day.length + ' present</span></div></td></tr>';
       }
       html += rowHtml(r, i);
     });
@@ -281,7 +295,7 @@
 
   // ---------- dialog: an engineer changes today's own entry; an admin adds or corrects any ----------
   var editing = null;
-  function syncTimes() { var show = isAdmin() && $("a_status").value === "present"; $("a_inL").hidden = !show; $("a_outL").hidden = !show; }
+  function syncTimes() { var pres = $("a_status").value === "present", show = isAdmin() && pres; $("a_inL").hidden = !show; $("a_outL").hidden = !show; $("a_custL").hidden = !pres; }
   $("a_status").addEventListener("change", syncTimes);
   function openAtt(a, preset) {
     editing = a; preset = preset || {};
@@ -296,7 +310,7 @@
     $("a_status").value = status;
     $("a_in").value = a ? hm(a.inAt) : (adm && status === "present" ? "08:00" : "");
     $("a_out").value = a ? hm(a.outAt) : "";
-    $("a_note").value = a ? a.note : "";
+    $("a_note").value = a ? a.note : ""; $("a_cust").value = a ? a.customer : "";
     syncTimes();
     $("attTitle").textContent = adm ? (a ? name(uid) + " · " + fmtShort(date) : "Add attendance") : (a ? "Change today's attendance" : "Can't come in today?");
     $("attMeta").textContent = adm ? "As admin you can add or correct attendance for anyone on any date." + (a && a.updatedAt ? " Last changed " + new Date(a.updatedAt).toLocaleString("en-GB") + "." : "")
@@ -316,16 +330,16 @@
   function stamp(date, time) { if (!date || !time) return null; var d = parse(date), t = time.split(":"); return new Date(d.getFullYear(), d.getMonth(), d.getDate(), +t[0], +t[1]).toISOString(); }
   $("attForm").addEventListener("submit", function (e) {
     e.preventDefault();
-    var adm = isAdmin(), status = $("a_status").value, note = $("a_note").value.trim(), row;
+    var adm = isAdmin(), status = $("a_status").value, note = $("a_note").value.trim(), cust = status === "present" ? $("a_cust").value.trim() : "", row;
     if (adm) {
       var d = $("a_date").value; if (!d) { toast("Choose the date."); return; }
       var inAt = status === "present" ? stamp(d, $("a_in").value) : null, outAt = status === "present" ? stamp(d, $("a_out").value) : null;
       if (outAt && !inAt) { toast("Fill in the check-in time too."); return; }
       if (inAt && outAt && outAt < inAt) outAt = new Date(new Date(outAt).getTime() + 86400000).toISOString();   // finished after midnight
-      row = { user_id: $("a_user").value, work_date: d, status: status, check_in: inAt, check_out: outAt, note: note };
+      row = { user_id: $("a_user").value, work_date: d, status: status, check_in: inAt, check_out: outAt, customer: cust, note: note };
     } else {
-      row = editing ? { status: status, note: note }
-                    : { user_id: state.user.id, work_date: iso(new Date()), status: status, check_in: status === "present" ? new Date().toISOString() : null, note: note };
+      row = editing ? { status: status, customer: cust, note: note }
+                    : { user_id: state.user.id, work_date: iso(new Date()), status: status, check_in: status === "present" ? new Date().toISOString() : null, customer: cust, note: note };
     }
     var btn = $("btnSave"); btn.disabled = true;
     var q = editing ? sb.from("attendance").update(row).eq("id", editing._id).select().single() : sb.from("attendance").insert(row).select().single();
@@ -364,9 +378,9 @@
     var page = { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.3, footer: 0.3 } };
     var HR = 6, foot = "&L&8PT. Tamura Trade Indonesia - Attendance Report&R&8Page &P of &N";
 
-    var HEAD = ["No", "Date", "Day", "Engineer", "Attendance", "Check in", "Check out", "Hours", "Note"], N = HEAD.length;
+    var HEAD = ["No", "Date", "Day", "Engineer", "Attendance", "Customer", "Check in", "Check out", "Hours", "Note"], N = HEAD.length;
     var ws = wb.addWorksheet("Attendance", { views: [{ state: "frozen", ySplit: HR, showGridLines: false }], pageSetup: page });
-    ws.columns = [5, 13, 6, 22, 30, 10, 10, 8, 50].map(function (w) { return { width: w }; });
+    ws.columns = [5, 13, 6, 22, 28, 24, 10, 10, 8, 46].map(function (w) { return { width: w }; });
     titleBlock(ws, N, "Attendance Report"); headRow(ws, HR, HEAD);
     var r = HR, per = {};
     rows.forEach(function (x, i) {
@@ -375,22 +389,22 @@
       var p = per[x.user] || (per[x.user] = { name: nm, present: 0, sick: 0, permit: 0, leave: 0, off: 0, absent: 0, none: 0, h: 0 });
       if (a) { p[a.status]++; p.h += h; } else p.none++;
       var vals = [i + 1, xlDate(x.date), parse(x.date).toLocaleDateString("en-GB", { weekday: "short" }), nm,
-                  a ? atLabel(a.status) : "No record", a ? hm(a.inAt) : "", a ? hm(a.outAt) : "", h ? Math.round(h * 100) / 100 : null, a ? a.note : ""];
+                  a ? atLabel(a.status) : "No record", a ? a.customer : "", a ? hm(a.inAt) : "", a ? hm(a.outAt) : "", h ? Math.round(h * 100) / 100 : null, a ? a.note : ""];
       var row = ws.getRow(r);
       vals.forEach(function (v, k) {
         var c = row.getCell(k + 1); c.value = (v === "" || v == null) ? null : v;
         c.font = { name: "Calibri", size: 10.5, color: { argb: INK } }; c.border = box;
-        c.alignment = { vertical: "top", wrapText: true, horizontal: (k === 3 || k === 8) ? "left" : "center" };
+        c.alignment = { vertical: "top", wrapText: true, horizontal: (k === 3 || k === 5 || k === 9) ? "left" : "center" };
         if (i % 2 === 1) c.fill = fill(SOFT);
       });
-      row.getCell(2).numFmt = "dd mmm yyyy"; row.getCell(8).numFmt = "0.0";
+      row.getCell(2).numFmt = "dd mmm yyyy"; row.getCell(9).numFmt = "0.0";
       var sc = row.getCell(5); sc.fill = fill(a ? AT_FILL[a.status] : "FFFBE6E3"); sc.font = { name: "Calibri", size: 10.5, bold: true, color: { argb: a ? AT_INK[a.status] : "FFB3261E" } };
     });
     ws.autoFilter = { from: { row: HR, column: 1 }, to: { row: HR, column: N } };
     ws.pageSetup.printTitlesRow = HR + ":" + HR; ws.headerFooter.oddFooter = foot;
     // sign-off
     r += 3;
-    [[2, "Prepared by", me], [6, "Approved by", ""]].forEach(function (sg) {
+    [[2, "Prepared by", me], [7, "Approved by", ""]].forEach(function (sg) {
       var c = ws.getCell(r, sg[0]); c.value = sg[1]; c.font = { name: "Calibri", size: 10.5, color: { argb: MUTED } };
       ws.mergeCells(r + 4, sg[0], r + 4, sg[0] + 2);
       var n = ws.getCell(r + 4, sg[0]); n.value = sg[2] || null; n.font = { name: "Calibri", size: 11, bold: true, color: { argb: INK } };
@@ -430,9 +444,9 @@
     });
   }
   function plainExport(rows) {
-    var aoa = [["Date", "Engineer", "Attendance", "Check in", "Check out", "Hours", "Note"]];
-    rows.forEach(function (x) { var a = x.rec, h = hours(a); aoa.push([x.date, name(x.user), a ? atLabel(a.status) : "No record", a ? hm(a.inAt) : "", a ? hm(a.outAt) : "", h ? Math.round(h * 100) / 100 : "", a ? a.note : ""]); });
-    var ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [11, 22, 30, 9, 9, 7, 50].map(function (w) { return { wch: w }; });
+    var aoa = [["Date", "Engineer", "Attendance", "Customer", "Check in", "Check out", "Hours", "Note"]];
+    rows.forEach(function (x) { var a = x.rec, h = hours(a); aoa.push([x.date, name(x.user), a ? atLabel(a.status) : "No record", a ? a.customer : "", a ? hm(a.inAt) : "", a ? hm(a.outAt) : "", h ? Math.round(h * 100) / 100 : "", a ? a.note : ""]); });
+    var ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [11, 22, 28, 24, 9, 9, 7, 46].map(function (w) { return { wch: w }; });
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Attendance"); XLSX.writeFile(wb, fileName());
   }
   $("btnExport").addEventListener("click", function () {

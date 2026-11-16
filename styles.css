@@ -346,3 +346,31 @@ table.att tr.miss .pill{background:var(--bad-soft);color:var(--bad)}
 .pill.att-off{background:var(--none-soft);color:var(--muted)}
 .pill.att-out{background:var(--accent-soft);color:var(--accent)}
 @media (max-width:760px){.attend{padding:12px 13px}.attend-r{width:100%}.attend-r .btn{flex:1;min-height:44px;justify-content:center}table.att{min-width:0}}
+.attend-cust{flex:1 1 260px;max-width:380px;font-size:13px}
+.attend-cust[hidden]{display:none}
+table.att td.c-sum{display:none}
+
+/* Attendance on a phone: my card first, big buttons, short list */
+@media (max-width:720px){
+  .attpage .wrap{gap:12px;padding-top:12px}
+  .attpage .attend{order:-1;flex-direction:column;align-items:stretch;padding:16px;gap:12px}
+  .attpage .attend-l strong{font-size:20px}
+  .attpage .attend-cust{max-width:none;flex:none;font-size:14px}
+  .attpage .attend-r{flex-direction:column}
+  .attpage .attend-r .btn{min-height:52px;font-size:16px}
+  .attpage .pagehead .lede,.attpage .pagehead .eyebrow{display:none}
+  .attpage .summary .h{display:block;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .attpage .summary.four{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .attpage .summary .stat{padding:9px 10px}
+  .attpage .summary .stat .k{font-size:11px;line-height:1.2}
+  .attpage .summary .stat .k .dot{display:none}
+  .attpage .summary .stat .v{font-size:20px}
+  .attpage .attbar label.inline{flex:1 1 30%}
+  .attpage .attsum{display:none}
+  table.att tr.row{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:11px 13px}
+  table.att tr.row td[data-l]::before{display:none}
+  table.att tr.row td[data-l="Date"],table.att tr.row td[data-l="Customer"],table.att tr.row td[data-l="Check in"],table.att tr.row td[data-l="Check out"],table.att tr.row td[data-l="Hours"],table.att tr.row td.c-pc{display:none}
+  table.att tr.row td[data-l="Attendance"]{text-align:right}
+  table.att td.c-sum{display:block;grid-column:1/-1;font-size:13px;color:var(--muted)}
+  table.att td.c-sum:empty{display:none}
+}

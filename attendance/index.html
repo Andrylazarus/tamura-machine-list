@@ -7,14 +7,14 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="../styles.css?v=20261116a">
+<link rel="stylesheet" href="../styles.css?v=20261116b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="../js/config.js?v=20261116b"></script>
 </head>
-<body>
+<body class="attpage">
 
 <!-- ================= Login ================= -->
 <section class="auth" id="viewLogin" hidden>
@@ -83,6 +83,8 @@
         <strong id="attState">Not checked in yet</strong>
         <span class="help" id="attSub"></span>
       </div>
+      <label class="attend-cust" id="attCustL" hidden>Where are you working today?
+        <input id="attCust" list="custList" autocomplete="off" maxlength="160" placeholder="Customer, or Office"></label>
       <div class="attend-r" id="attButtons"></div>
     </section>
 
@@ -122,7 +124,7 @@
 
     <div class="tablebox">
       <table class="stock daily att">
-        <thead><tr><th>Engineer</th><th>Date</th><th>Attendance</th><th>Check in</th><th>Check out</th><th>Hours</th><th>Note</th></tr></thead>
+        <thead><tr><th>Engineer</th><th>Date</th><th>Attendance</th><th>Customer</th><th>Check in</th><th>Check out</th><th>Hours</th><th>Note</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
       <div class="empty" id="empty" hidden><strong id="emptyTitle">Loading…</strong><span id="emptyText">Attendance appears here once it loads.</span></div>
@@ -147,6 +149,7 @@
             <option value="off" data-admin>Day off (Libur)</option>
             <option value="absent" data-admin>Absent without notice (Alpa)</option>
           </select></label>
+        <label id="a_custL">Customer<input id="a_cust" list="custList" autocomplete="off" maxlength="160" placeholder="Customer, or Office"></label>
         <label id="a_inL">Check in<input id="a_in" type="time"></label>
         <label id="a_outL">Check out<input id="a_out" type="time"></label>
         <label class="wide">Note<textarea id="a_note" rows="2" maxlength="500" placeholder="e.g. Fever, doctor's letter tomorrow · Family matter · Annual leave"></textarea></label>
@@ -162,8 +165,9 @@
     </div>
   </form>
 </dialog>
+<datalist id="custList"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="attendance.js?v=20261116a"></script>
+<script src="attendance.js?v=20261116b"></script>
 </body>
 </html>

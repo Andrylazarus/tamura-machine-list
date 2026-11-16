@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Attendance (absen) for every engineer, shown on the Daily report page
 -- Run this once in Supabase: Dashboard → SQL Editor → New query → Run.
--- Run it after schema.sql, permissions.sql and daily.sql. Safe to run again.
+-- Run it after schema.sql and permissions.sql. Safe to run again (also after an update of this file).
 --
 --   every approved account : sees everyone's attendance; checks itself in and out for TODAY,
 --                            or reports today as sick / permission / leave
@@ -23,6 +23,9 @@ create table if not exists public.attendance (
   updated_at  timestamptz not null default now(),
   unique (user_id, work_date)
 );
+
+-- Where the engineer works that day (customer, or Office). Added later, so also for existing tables.
+alter table public.attendance add column if not exists customer text not null default '' check (char_length(customer) <= 160);
 
 create index if not exists attendance_date_idx on public.attendance (work_date desc);
 
