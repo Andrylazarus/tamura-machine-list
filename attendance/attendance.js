@@ -449,9 +449,154 @@
     var ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [11, 22, 28, 24, 9, 9, 7, 46].map(function (w) { return { wch: w }; });
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Attendance"); XLSX.writeFile(wb, fileName());
   }
-  $("btnExport").addEventListener("click", function () {
+  // ---------- weekly / monthly recap ----------
+  var CODE = { present: "H", sick: "S", permit: "I", leave: "C", off: "L", absent: "A" };
+  function monday(d) { return addDays(d, -((d.getDay() + 6) % 7)); }
+  function fillExportChoices() {
+    var t = new Date(), w = monday(t), wh = "", mh = "";
+    for (var i = 0; i < 26; i++) {
+      var a = addDays(w, -7 * i), b = addDays(a, 6);
+      wh += '<option value="' + iso(a) + '">' + (i === 0 ? "This week: " : i === 1 ? "Last week: " : "") + fmtShort(iso(a)) + " – " + fmtShort(iso(b)) + '</option>';
+    }
+    for (var j = 0; j < 24; j++) {
+      var m = new Date(t.getFullYear(), t.getMonth() - j, 1);
+      mh += '<option value="' + iso(m) + '">' + m.toLocaleDateString("en-GB", { month: "long", year: "numeric" }) + (j === 0 ? " (this month)" : "") + '</option>';
+    }
+    $("x_week").innerHTML = wh; $("x_month").innerHTML = mh;
+    $("x_user").innerHTML = '<option value="">Everyone</option>' + Object.keys(state.team).sort(function (a, b) { return natural(state.team[a], state.team[b]); })
+      .map(function (id) { return '<option value="' + esc(id) + '">' + esc(state.team[id]) + '</option>'; }).join("");
+    $("x_user").value = state.fUser;
+  }
+  function expKind() { return document.querySelector('input[name="expKind"]:checked').value; }
+  function syncExp() { var k = expKind(); $("x_weekL").hidden = k !== "week"; $("x_monthL").hidden = k !== "month"; $("x_userL").hidden = k === "list"; }
+  $("expForm").addEventListener("change", function (e) { if (e.target.name === "expKind") syncExp(); });
+  $("dlgExport").addEventListener("click", function (e) { if (e.target.closest("[data-close]") || e.target === this) this.close(); });
+  $("btnExport").addEventListener("click", function () { fillExportChoices(); syncExp(); $("dlgExport").showModal(); });
+  $("expForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var k = expKind();
+    if (k === "list") { $("dlgExport").close(); listExport(); return; }
+    if (typeof ExcelJS === "undefined") { toast("The Excel library did not load. Reload the page."); return; }
+    var a, b;
+    if (k === "week") { a = $("x_week").value; b = iso(addDays(parse(a), 6)); }
+    else { var m = parse($("x_month").value); a = iso(m); b = iso(new Date(m.getFullYear(), m.getMonth() + 1, 0)); }
+    var btn = $("btnExpGo"); btn.disabled = true;
+    sb.from("attendance").select("*").gte("work_date", a).lte("work_date", b).range(0, 9999).then(function (res) {
+      if (res.error) { toast("Could not load attendance: " + res.error.message); return; }
+      return recapExport(k, a, b, (res.data || []).map(fromRow), $("x_user").value).then(function () { $("dlgExport").close(); });
+    }).catch(function (err) { toast("Export failed: " + (err && err.message || err)); }).finally(function () { btn.disabled = false; });
+  });
+
+  function recapExport(kind, from, to, recs, onlyUser) {
+    var me = name(state.user.id), now = new Date(), today = iso(now);
+    var byKey = {}; recs.forEach(function (r) { byKey[key(r.user, r.date)] = r; });
+    var ids = Object.keys(state.team);
+    recs.forEach(function (r) { if (ids.indexOf(r.user) < 0) ids.push(r.user); });
+    if (onlyUser) ids = ids.filter(function (id) { return id === onlyUser; });
+    ids.sort(function (x, y) { return natural(name(x), name(y)); });
+    var days = []; for (var d = parse(from); iso(d) <= to; d = addDays(d, 1)) days.push(iso(d));
+
+    var wb = new ExcelJS.Workbook(); wb.creator = me; wb.created = now;
+    var thin = { style: "thin", color: { argb: LINE } }, box = { top: thin, left: thin, bottom: thin, right: thin };
+    function fill(argb) { return { type: "pattern", pattern: "solid", fgColor: { argb: argb } }; }
+    var CODE_FILL = { H: "FFDDF1E7", S: "FFFBEFD4", I: "FFFBEFD4", C: "FFE3EBFB", L: "FFE9EDF2", A: "FFFBE6E3" };
+    var CODE_INK = { H: "FF18774D", S: "FF8F5600", I: "FF8F5600", C: "FF1F56C9", L: "FF5D6B7E", A: "FFB3261E" };
+    var title = kind === "week" ? "Weekly Attendance Recap" : "Monthly Attendance Recap";
+    var periodText = kind === "week" ? longDate(from) + " to " + longDate(to) : parse(from).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    var page = { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.3, right: 0.3, top: 0.5, bottom: 0.6, header: 0.3, footer: 0.3 } };
+
+    // ----- Sheet 1: the grid -----
+    var TOT = [["H", "Present"], ["S", "Sick"], ["I", "Permission"], ["C", "Leave"], ["L", "Day off"], ["A", "Absent"], ["-", "No record"]];
+    var N = 2 + days.length + TOT.length + 1, HR = 6;
+    var ws = wb.addWorksheet("Recap", { views: [{ state: "frozen", xSplit: 2, ySplit: HR + 1, showGridLines: false }], pageSetup: page });
+    ws.columns = [{ width: 5 }, { width: 22 }].concat(days.map(function () { return { width: kind === "week" ? 13 : 4.6 }; }), TOT.map(function () { return { width: 9 }; }), [{ width: 9 }]);
+    [1, 2, 3, 4].forEach(function (r) { ws.mergeCells(r, 1, r, N); ws.getCell(r, 1).alignment = { vertical: "middle", horizontal: "left" }; });
+    ws.getCell(1, 1).value = "PT. TAMURA TRADE INDONESIA"; ws.getCell(1, 1).font = { name: "Calibri", size: 11, bold: true, color: { argb: BLUE } };
+    ws.getCell(2, 1).value = title; ws.getCell(2, 1).font = { name: "Calibri", size: 20, bold: true, color: { argb: INK } };
+    ws.getCell(3, 1).value = "Period: " + periodText + (onlyUser ? "     |     Engineer: " + name(onlyUser) : "");
+    ws.getCell(3, 1).font = { name: "Calibri", size: 11, color: { argb: INK } };
+    ws.getCell(4, 1).value = "H Hadir · S Sakit · I Izin · C Cuti · L Libur · A Alpa · – no record      Exported " + now.toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " by " + me;
+    ws.getCell(4, 1).font = { name: "Calibri", size: 10, italic: true, color: { argb: MUTED } };
+    ws.getRow(2).height = 30; ws.getRow(5).height = 8;
+    // two header rows: day name / date
+    var h1 = ws.getRow(HR), h2 = ws.getRow(HR + 1); h1.height = 18; h2.height = 20;
+    function head(c, v, sun) { c.value = v; c.font = { name: "Calibri", size: 10, bold: true, color: { argb: sun ? "FFFFB4A9" : "FFFFFFFF" } }; c.fill = fill(INK); c.border = box; c.alignment = { vertical: "middle", horizontal: "center", wrapText: true }; }
+    ws.mergeCells(HR, 1, HR + 1, 1); ws.mergeCells(HR, 2, HR + 1, 2);
+    head(h1.getCell(1), "No"); head(h1.getCell(2), "Engineer");
+    days.forEach(function (ds, i) {
+      var sun = parse(ds).getDay() === 0, dd = parse(ds);
+      head(h1.getCell(3 + i), dd.toLocaleDateString("en-GB", { weekday: kind === "week" ? "long" : "narrow" }), sun);
+      head(h2.getCell(3 + i), kind === "week" ? dd.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : dd.getDate(), sun);
+    });
+    var t0 = 3 + days.length;
+    TOT.forEach(function (t, i) { ws.mergeCells(HR, t0 + i, HR + 1, t0 + i); head(h1.getCell(t0 + i), t[1] + (t[0] !== "-" ? " (" + t[0] + ")" : "")); });
+    ws.mergeCells(HR, t0 + TOT.length, HR + 1, t0 + TOT.length); head(h1.getCell(t0 + TOT.length), "Hours");
+
+    var r = HR + 1, grand = { H: 0, S: 0, I: 0, C: 0, L: 0, A: 0, "-": 0, h: 0 }, detail = [];
+    ids.forEach(function (id, n) {
+      r++;
+      var row = ws.getRow(r), cnt = { H: 0, S: 0, I: 0, C: 0, L: 0, A: 0, "-": 0 }, hrs = 0;
+      row.height = kind === "week" ? 32 : 18;
+      [n + 1, name(id)].forEach(function (v, k) { var c = row.getCell(k + 1); c.value = v; c.border = box; c.font = { name: "Calibri", size: 10.5, bold: k === 1, color: { argb: INK } }; c.alignment = { vertical: "middle", horizontal: k ? "left" : "center" }; });
+      days.forEach(function (ds, i) {
+        var a = byKey[key(id, ds)], sun = parse(ds).getDay() === 0, future = ds > today, c = row.getCell(3 + i), code = a ? CODE[a.status] : "";
+        if (a) { cnt[code]++; hrs += hours(a); detail.push({ user: id, date: ds, rec: a }); }
+        else if (!sun && !future) cnt["-"]++;
+        var v = a ? code : (sun || future ? "" : "–");
+        if (kind === "week" && a && a.status === "present") v = "H  " + hm(a.inAt) + (a.outAt ? "–" + hm(a.outAt) : "") + (a.customer ? "\n" + a.customer : "");
+        c.value = v || null; c.border = box;
+        c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+        c.font = { name: "Calibri", size: kind === "week" ? 9.5 : 10, bold: !!a, color: { argb: a ? CODE_INK[code] : MUTED } };
+        if (a) c.fill = fill(CODE_FILL[code]); else if (sun) c.fill = fill("FFF1F1F1");
+        if (a && a.note) c.note = a.note;
+      });
+      TOT.forEach(function (t, i) { var c = row.getCell(t0 + i); c.value = cnt[t[0]]; grand[t[0]] += cnt[t[0]]; c.border = box; c.alignment = { vertical: "middle", horizontal: "center" };
+        c.font = { name: "Calibri", size: 10.5, bold: t[0] === "H", color: { argb: t[0] === "-" && cnt["-"] ? "FFB3261E" : INK } }; if (n % 2) c.fill = fill(SOFT); });
+      var hc = row.getCell(t0 + TOT.length); hc.value = Math.round(hrs * 10) / 10; hc.numFmt = "0.0"; hc.border = box; hc.alignment = { vertical: "middle", horizontal: "center" }; hc.font = { name: "Calibri", size: 10.5, color: { argb: INK } };
+      grand.h += hrs;
+    });
+    r++;
+    var tr = ws.getRow(r); tr.height = 22; ws.mergeCells(r, 1, r, 2 + days.length);
+    tr.getCell(1).value = "Total"; tr.getCell(1).alignment = { vertical: "middle", horizontal: "right" };
+    for (var k = 1; k <= N; k++) { var tc = tr.getCell(k); tc.fill = fill("FFE3EBFB"); tc.border = box; tc.font = { name: "Calibri", size: 11, bold: true, color: { argb: INK } }; if (k > 2 + days.length) tc.alignment = { vertical: "middle", horizontal: "center" }; }
+    TOT.forEach(function (t, i) { tr.getCell(t0 + i).value = grand[t[0]]; });
+    tr.getCell(t0 + TOT.length).value = Math.round(grand.h * 10) / 10; tr.getCell(t0 + TOT.length).numFmt = "0.0";
+    r += 3;
+    [[2, "Prepared by", me], [Math.max(6, t0), "Approved by", ""]].forEach(function (sg) {
+      var c = ws.getCell(r, sg[0]); c.value = sg[1]; c.font = { name: "Calibri", size: 10.5, color: { argb: MUTED } };
+      var n2 = ws.getCell(r + 4, sg[0]); n2.value = sg[2] || null; n2.font = { name: "Calibri", size: 11, bold: true, color: { argb: INK } }; n2.border = { top: { style: "thin", color: { argb: INK } } };
+      ws.getCell(r + 5, sg[0]).value = "Date:"; ws.getCell(r + 5, sg[0]).font = { name: "Calibri", size: 10, color: { argb: MUTED } };
+    });
+    ws.pageSetup.printTitlesRow = HR + ":" + (HR + 1);
+    ws.headerFooter.oddFooter = "&L&8PT. Tamura Trade Indonesia - " + title + "&R&8Page &P of &N";
+
+    // ----- Sheet 2: details (one row per record) -----
+    var ws2 = wb.addWorksheet("Details", { views: [{ state: "frozen", ySplit: 1, showGridLines: false }], pageSetup: page });
+    var HEAD2 = ["Date", "Day", "Engineer", "Attendance", "Customer", "Check in", "Check out", "Hours", "Note"];
+    ws2.columns = [12, 6, 22, 28, 24, 10, 10, 8, 46].map(function (w) { return { width: w }; });
+    HEAD2.forEach(function (t, i) { var c = ws2.getRow(1).getCell(i + 1); c.value = t; c.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } }; c.fill = fill(INK); c.border = box; c.alignment = { horizontal: "center", vertical: "middle" }; });
+    detail.sort(function (x, y) { return natural(x.date, y.date) || natural(name(x.user), name(y.user)); }).forEach(function (x, i) {
+      var a = x.rec, h = hours(a), row = ws2.getRow(i + 2);
+      [xlDate(x.date), parse(x.date).toLocaleDateString("en-GB", { weekday: "short" }), name(x.user), atLabel(a.status), a.customer, hm(a.inAt), hm(a.outAt), h ? Math.round(h * 100) / 100 : null, a.note]
+        .forEach(function (v, k) { var c = row.getCell(k + 1); c.value = (v === "" || v == null) ? null : v; c.border = box; c.font = { name: "Calibri", size: 10.5, color: { argb: INK } };
+          c.alignment = { vertical: "top", wrapText: true, horizontal: (k === 2 || k === 4 || k === 8) ? "left" : "center" }; if (i % 2) c.fill = fill(SOFT); });
+      row.getCell(1).numFmt = "dd mmm yyyy"; row.getCell(8).numFmt = "0.0";
+    });
+    if (detail.length) ws2.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: HEAD2.length } };
+
+    var file = "Tamura_Attendance_" + (kind === "week" ? "Week_" + from + "_to_" + to : "Month_" + from.slice(0, 7)) + (onlyUser ? "_" + name(onlyUser).replace(/\W+/g, "_") : "") + ".xlsx";
+    return wb.xlsx.writeBuffer().then(function (buf) {
+      var blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      var el = document.createElement("a"); el.href = URL.createObjectURL(blob); el.download = file;
+      document.body.appendChild(el); el.click(); el.remove();
+      setTimeout(function () { URL.revokeObjectURL(el.href); }, 4000);
+      toast("Downloaded " + file);
+    });
+  }
+
+  function listExport() {
     var rows = exportRows(); if (!rows.length) { toast("Nothing to export with the current period and filters."); return; }
-    var btn = this;
+    var btn = $("btnExport");
     function fallback(err) {
       if (err && window.console) console.warn("Formatted export failed, using the plain one:", err);
       if (typeof XLSX === "undefined") { toast("The Excel library did not load. Reload the page."); return; }
@@ -460,7 +605,7 @@
     if (typeof ExcelJS === "undefined") { fallback(); return; }
     btn.disabled = true;
     Promise.resolve().then(function () { return styledExport(rows); }).catch(fallback).finally(function () { btn.disabled = false; });
-  });
+  }
 
   render();
 })();

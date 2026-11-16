@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="../styles.css?v=20261116b">
+<link rel="stylesheet" href="../styles.css?v=20261116c">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js"></script>
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -68,7 +68,7 @@
         <p class="lede" id="lede">Check in when you start work and check out when you finish.</p>
       </div>
       <div class="actions">
-        <button class="btn" id="btnExport" type="button" title="Download the attendance shown below as Excel">
+        <button class="btn" id="btnExport" type="button" title="Weekly or monthly recap, or the list shown below, as Excel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg><span class="l">Export Excel</span></button>
         <button class="btn primary" id="btnAdd" type="button" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add attendance</button>
@@ -165,9 +165,36 @@
     </div>
   </form>
 </dialog>
+<!-- Export: weekly / monthly recap, or the list -->
+<dialog id="dlgExport" aria-labelledby="expTitle">
+  <form class="dlg" id="expForm" method="dialog">
+    <div class="dlg-head"><h2 id="expTitle">Export attendance</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <div class="expkinds">
+        <label class="expkind"><input type="radio" name="expKind" value="week" checked><span><strong>Weekly recap</strong><small>Monday to Sunday: one row per engineer, one column per day</small></span></label>
+        <label class="expkind"><input type="radio" name="expKind" value="month"><span><strong>Monthly recap</strong><small>Day 1 to the end of the month, with totals per engineer</small></span></label>
+        <label class="expkind"><input type="radio" name="expKind" value="list"><span><strong>List</strong><small>The period and filters shown on the page, one row per day</small></span></label>
+      </div>
+      <fieldset>
+        <label id="x_weekL">Week<select id="x_week"></select></label>
+        <label id="x_monthL" hidden>Month<select id="x_month"></select></label>
+        <label id="x_userL">Engineer<select id="x_user"></select></label>
+      </fieldset>
+      <p class="help">Codes in the recap: H Hadir · S Sakit · I Izin · C Cuti · L Libur · A Alpa · – no record.</p>
+    </div>
+    <div class="dlg-foot">
+      <div></div>
+      <div class="r">
+        <button class="btn" type="button" data-close>Close</button>
+        <button class="btn primary" type="submit" id="btnExpGo">Download Excel</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
 <datalist id="custList"></datalist>
 <div class="toast" id="toast" hidden></div>
 
-<script src="attendance.js?v=20261116b"></script>
+<script src="attendance.js?v=20261116c"></script>
 </body>
 </html>

@@ -374,3 +374,11 @@ table.att td.c-sum{display:none}
   table.att td.c-sum{display:block;grid-column:1/-1;font-size:13px;color:var(--muted)}
   table.att td.c-sum:empty{display:none}
 }
+.expkinds{display:flex;flex-direction:column;gap:8px}
+.expkind{display:flex;flex-direction:row;align-items:flex-start;justify-content:flex-start;gap:10px;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;cursor:pointer}
+.expkind:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.expkind input{min-height:0;width:auto;flex:none;margin:3px 0 0}
+.expkind span{display:flex;flex-direction:column;gap:1px;flex:1;text-align:left;font-size:14px}
+.expkind small{color:var(--muted);font-size:12.5px;font-weight:400}
+#x_weekL,#x_monthL{grid-column:span 2}
+@media (max-width:720px){#x_weekL,#x_monthL{grid-column:1/-1}}
