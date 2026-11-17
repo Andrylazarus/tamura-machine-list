@@ -110,4 +110,4 @@ body.shelled [data-shell-hide]{display:none!important}
   body.has-tabbar .pagehead .actions .btn:not(.primary) span.l{display:inline!important}
   body.has-tabbar .pagehead .actions .btn:not(.primary){justify-content:center;gap:8px}
 }
-@media (max-width:440px){.appbar .who,.appbar .em{display:none!important}}
+@media (max-width:440px){.appbar .who,.appbar .sh-email{display:none!important}}
