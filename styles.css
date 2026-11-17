@@ -408,7 +408,7 @@ table.daily .c-action .desc{margin-top:0}
 @media (max-width:720px){
   table.daily tr.row .c-kind{order:-3;display:block}
   table.daily tr.row .c-action{grid-column:1/-1;order:-2}
-  table.daily tr.row .c-action::before{display:none}
+  table.daily tr.row .c-action::before{display:block}
 }
 /* Daily report: photos on an activity */
 .photofield{display:flex;flex-direction:column;gap:6px}
