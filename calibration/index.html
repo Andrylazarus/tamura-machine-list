@@ -10,6 +10,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../css/shell.css?v=20261117b">
 <style>
 /* Layout: editor panel on the left, live A4 paper preview on the right; paper stays white in both themes */
 :root{
@@ -321,6 +322,8 @@ table.ht,table.ft{width:100%;border-collapse:collapse;font-family:Arial,"Liberat
   .page{box-shadow:none;height:295mm;break-inside:avoid;break-after:page;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .page:last-child{break-after:auto;page-break-after:auto}
 }
+body.shelled .bar{top:60px}
+@media (max-width:760px){body.shelled .bar{top:56px}}
 </style>
 
 <div class="bar">
@@ -335,7 +338,7 @@ table.ht,table.ft{width:100%;border-collapse:collapse;font-family:Arial,"Liberat
     <button class="btn" id="btn-zip" type="button">Import .zip…</button>
     <button class="btn warn" id="btn-new" type="button">New report</button>
     <button class="btn" id="btn-example" type="button">Load example</button>
-    <span class="who" id="who" hidden><span id="who-email"></span><a href="../" class="btn sm">Machine List</a><button class="btn sm" id="btn-logout" type="button">Log out</button></span>
+    <span class="who" id="who" hidden data-shell-hide><span id="who-email"></span><a href="../" class="btn sm">Machine List</a><button class="btn sm" id="btn-logout" type="button">Log out</button></span>
     <button class="btn" id="btn-open" type="button">Open data…</button>
     <button class="btn" id="btn-save" type="button">Save data</button>
     <button class="btn primary" id="btn-print" type="button">Print / PDF</button>
@@ -974,4 +977,5 @@ buildForm();
 (document.fonts?document.fonts.ready:Promise.resolve()).then(render);render();
 </script>
 
+<script src="../js/shell.js?v=20261117a" data-page="calibration" data-base="../"></script>
 </html>

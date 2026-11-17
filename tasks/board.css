@@ -286,3 +286,43 @@ div.stat { cursor: default; }
 .v-title { margin: 0; font-size: 18px; line-height: 1.3; }
 .v-who { font-size: 13px; color: var(--muted); }
 .v-details { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* =====================================================================
+   Professional refresh (Nov 2026): same look as the rest of the portal
+   ===================================================================== */
+:root:not([data-theme="dark"]) { --bg:#f3f5f8; --line:#e1e6ed; --lane:#f7f9fb; --ink:#121b29; --muted:#5b6879; --accent-soft:#e8effc;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06); }
+body { -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1560px; padding: 28px 20px 64px; gap: 20px; }
+header.top { align-items: flex-end; gap: 16px; }
+.brand .org { color: var(--accent); letter-spacing: .14em; }
+.brand h1 { font-size: clamp(22px,2.4vw,28px); letter-spacing: -.02em; line-height: 1.2; }
+.btn { height: 38px; padding: 0 14px; font-weight: 550; font-size: 13.5px; box-shadow: 0 1px 2px rgba(16,24,40,.05); display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: #c4cdd9; background: #f7f9fb; }
+.btn.primary:hover { background: #1a4bb3; border-color: #1a4bb3; filter: none; }
+.field, .toolbar input[type=search] { min-height: 38px; border-radius: 8px; }
+.stats { gap: 14px; }
+.stat { border-radius: 12px; padding: 16px 18px 15px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+.stat .k { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.stat .v { font-size: 30px; line-height: 1.1; }
+.lane { border-radius: 14px; padding: 12px; gap: 10px; }
+.lane-h h2 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.card { border-radius: 10px; padding: 12px 14px; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.card:hover { box-shadow: 0 6px 16px rgba(16,24,40,.08); transform: translateY(-1px); }
+table.list { border-radius: 12px; }
+table.list th { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; }
+@media (max-width: 760px) {
+  .wrap { padding: 18px 12px 44px; gap: 16px; }
+  header.top { align-items: center; }
+  .brand h1 { font-size: 22px; }
+  .stats { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+  .stat { padding: 12px 14px; }
+  .stat .v { font-size: 24px; }
+  .toolbar { gap: 8px; }
+  .toolbar input[type=search] { flex: 1 1 100%; font-size: 16px; min-height: 44px; }
+  .field { font-size: 16px; min-height: 44px; flex: 1 1 140px; }
+  /* Swipe between the status lanes */
+  .board { grid-template-columns: repeat(4, 86vw); scroll-snap-type: x mandatory; gap: 10px; margin: 0 -12px; padding: 0 12px 6px; scroll-padding: 0 12px; }
+  .lane { scroll-snap-align: start; min-height: 200px; }
+  .card { padding: 14px; }
+}

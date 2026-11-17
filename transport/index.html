@@ -8,6 +8,7 @@
 <script>if (!window.supabase || !window.supabase.createClient) document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script src="../js/config.js?v=20261116b"></script>
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="../css/shell.css?v=20261117b">
 </head>
 <body>
 <title>Transport Claim Report</title>
@@ -164,6 +165,11 @@ table.x td{padding:3px 4px;vertical-align:middle}
   #xTam td:nth-child(4){grid-column:1 / -1}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Professional refresh (Nov 2026): portal colours; the totals bar sits above the phone tab bar */
+:root:not([data-theme="dark"]){--bg:#f3f5f8;--line:#e1e6ed;--soft:#eef2f7;--fg:#121b29;--muted:#5b6879;--accent:#1f56c9;--accent-soft:#e8effc;--sign:#1f56c9}
+.sign{border-radius:12px!important}
+@media (max-width:760px){body.has-tabbar .bar{bottom:calc(72px + env(safe-area-inset-bottom,0px))}}
 </style>
 
 <div class="wrap">
@@ -265,7 +271,7 @@ window.TC_CLOUD=(function(){
     const out={};(r.data||[]).forEach(x=>out[x.key]=x.data);
     $('gate').hidden=true;
     const c=document.querySelector('header.top .controls');
-    if(c&&!$('who')){const w=document.createElement('span');w.className='who';w.id='who';
+    if(c&&!$('who')){const w=document.createElement('span');w.className='who';w.id='who';w.setAttribute('data-shell-hide','');
       w.innerHTML='<span></span><a href="../">Machine List</a><button type="button" id="btn-logout">Log out</button>';
       w.firstChild.textContent=user.email;c.appendChild(w);$('btn-logout').onclick=logout}
     resolve(out);
@@ -853,5 +859,6 @@ load();
 })();
 </script>
 
+<script src="../js/shell.js?v=20261117a" data-page="transport" data-base="../"></script>
 </body>
 </html>
