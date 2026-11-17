@@ -12,7 +12,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../tasks/board.css?v=20261111m">
-<link rel="stylesheet" href="../css/shell.css?v=20261117b">
 </head>
 <body data-page="schedule">
 <div class="gate" id="gate">
@@ -39,10 +38,10 @@
       <h1>Team Schedule</h1>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <div class="me" id="me" data-shell-hide></div>
-      <a class="btn nav-link" href="../tasks/" data-shell-hide>Task board</a>
-      <a class="btn" href="../" data-shell-hide>Machine List</a>
-      <button class="btn" type="button" id="logoutBtn" data-shell-hide>Log out</button>
+      <div class="me" id="me"></div>
+      <a class="btn nav-link" href="../tasks/">Task board</a>
+      <a class="btn" href="../">Machine List</a>
+      <button class="btn" type="button" id="logoutBtn">Log out</button>
       <button class="btn primary" id="newBtn" type="button">+ New activity</button>
     </div>
   </header>
@@ -159,6 +158,5 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="../tasks/board.js?v=20261116b"></script>
-<script src="../js/shell.js?v=20261117a" data-page="schedule" data-base="../"></script>
 </body>
 </html>

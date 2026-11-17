@@ -12,7 +12,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="board.css?v=20261111m">
-<link rel="stylesheet" href="../css/shell.css?v=20261117b">
 </head>
 <body data-page="tasks">
 <div class="gate" id="gate">
@@ -39,10 +38,10 @@
       <h1>Team Task Board <span title="This page is still being tested and may change" style="display:inline-block;vertical-align:middle;margin-left:8px;padding:2px 8px;border-radius:999px;font:600 11px/1.4 var(--font-mono,monospace);letter-spacing:.08em;text-transform:uppercase;background:var(--accent-soft);color:var(--accent)">Beta version</span></h1>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <div class="me" id="me" data-shell-hide></div>
-      <a class="btn nav-link" href="../schedule/" data-shell-hide>Schedule</a>
-      <a class="btn" href="../" data-shell-hide>Machine List</a>
-      <button class="btn" type="button" id="logoutBtn" data-shell-hide>Log out</button>
+      <div class="me" id="me"></div>
+      <a class="btn nav-link" href="../schedule/">Schedule</a>
+      <a class="btn" href="../">Machine List</a>
+      <button class="btn" type="button" id="logoutBtn">Log out</button>
       <button class="btn primary" id="newBtn" type="button">+ New task</button>
     </div>
   </header>
@@ -163,6 +162,5 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="board.js?v=20261116b"></script>
-<script src="../js/shell.js?v=20261117a" data-page="tasks" data-base="../"></script>
 </body>
 </html>
