@@ -228,7 +228,7 @@
       '<td data-l="Problem" class="c-problem">' + (m.problem ? '<div class="desc">' + esc(m.problem) + '</div>' : '') + '</td>' +
       '<td data-l="What was done" class="c-action"><div class="desc">' + esc(m.description) + '</div>' + (m.photos.length ? '<div class="sub pcount">📷 ' + m.photos.length + (m.photos.length === 1 ? ' photo' : ' photos') + (function (t) { return t ? ' · ' + fmtSize(t) : ''; })(m.photos.reduce(function (t, p) { return t + photoBytes(p); }, 0)) + '</div>' : '') + '</td>' +
       '<td data-l="Status"><span class="pill ' + ST_PILL[m.status] + '">' + ST_LABEL[m.status] + '</span></td>' +
-      '<td data-l="Action" class="c-pc">' + (m.next ? '<span class="note">' + esc(m.next) + '</span>' : '') + '</td></tr>';
+      '<td data-l="Next action" class="c-pc">' + (m.next ? '<span class="note">' + esc(m.next) + '</span>' : '') + '</td></tr>';
   }
   function render() {
     var list = all(), b = bounds();
@@ -413,7 +413,7 @@
         '<label>Status<select data-x="status"><option value="done">Done</option><option value="ongoing">Ongoing</option><option value="pending">Pending</option></select></label>' +
         '<label class="wide">Problem<textarea data-x="problem" rows="2" maxlength="2000"></textarea></label>' +
         '<label class="wide"><span class="req">What was done</span><textarea data-x="description" rows="3" maxlength="4000"></textarea></label>' +
-        '<label class="wide">Action<textarea data-x="next" rows="2" maxlength="2000"></textarea></label>' +
+        '<label class="wide">Next action<textarea data-x="next" rows="2" maxlength="2000"></textarea></label>' +
         '<div class="wide photofield" data-x="photos"></div>' +
       '</fieldset>';
     $("extraActs").appendChild(el); photoField(el.querySelector("[data-x=photos]"), [], true); syncSaveLabel();
@@ -664,7 +664,7 @@
                  margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.3, footer: 0.3 } };
 
     // ----- Sheet 1: the activities -----
-    var HEAD = ["No", "Date", "Day", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Problem", "What was done", "Status", "Action"];
+    var HEAD = ["No", "Date", "Day", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Problem", "What was done", "Status", "Next action"];
     var WID = [5, 16, 6, 18, 7, 7, 7, 24, 16, 18, 26, 36, 48, 11, 32];
     var PIC_H = 96, PIC_W = 128, PIC_COL = 3 * (PIC_W + 6) / 7 + 2;          // three photos side by side in the last column
     if (hasPics) { HEAD.push("Photos"); WID.push(Math.ceil(PIC_COL)); }
@@ -766,7 +766,7 @@
     });
   }
   function plainExport(rows) {
-    var aoa = [["Date", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Problem", "What was done", "Status", "Action", "Photos"]];
+    var aoa = [["Date", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Problem", "What was done", "Status", "Next action", "Photos"]];
     rows.forEach(function (m) { var h = hours(m); aoa.push([m.kind === "week" ? "Week " + m.date + " to " + weekEnd(m) : m.date, who(m.by), m.start, m.end, h ? Math.round(h * 100) / 100 : "", m.customer, m.location, m.type, m.machine, m.problem, m.description, ST_LABEL[m.status], m.next, (m.photos || []).length || ""]); });
     var ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = [11, 18, 7, 7, 7, 24, 18, 20, 28, 40, 60, 10, 36].map(function (w) { return { wch: w }; });
