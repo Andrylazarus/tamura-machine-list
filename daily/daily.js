@@ -6,7 +6,7 @@
   var ST_LABEL = { done: "Done", ongoing: "Ongoing", pending: "Pending" }, ST_PILL = { done: "ok", ongoing: "warn", pending: "none" };
   var FACETS = [{ k: "by", label: "Engineer" }, { k: "customer", label: "Customer" }, { k: "type", label: "Type of activity" }, { k: "status", label: "Status" }];
   var KIND_LABEL = { day: "Daily", week: "Weekly" };
-  var NCOLS = 9;
+  var NCOLS = 10;
 
   var state = { docs: new Map(), q: "", group: "date", range: "last7", from: "", to: "", shut: new Set(), shutFacet: {},
                 sel: { by: new Set(), kind: new Set(), customer: new Set(), type: new Set(), status: new Set() },
@@ -97,7 +97,7 @@
   function fromRow(r) {
     return { _id: r.id, date: r.report_date, start: (r.start_time || "").slice(0, 5), end: (r.end_time || "").slice(0, 5),
       customer: r.customer || "", location: r.location || "", type: r.activity_type || "", machine: r.machine || "",
-      description: r.description || "", status: ST_LABEL[r.status] ? r.status : "done", next: r.next_action || "",
+      problem: r.problem || "", description: r.description || "", status: ST_LABEL[r.status] ? r.status : "done", next: r.next_action || "",
       by: r.created_by || "", updatedAt: r.updated_at, kind: r.report_kind === "week" ? "week" : "day",
       photos: Array.isArray(r.photos) ? r.photos.filter(function (p) { return typeof p === "string"; }) : [] };
   }
@@ -175,7 +175,7 @@
   function matches(m, skip) {
     for (var i = 0; i < FACETS.length; i++) { var k = FACETS[i].k, s = state.sel[k]; if (k !== skip && s.size && !s.has(fval(m, k))) return false; }
     var q = state.q.trim().toLowerCase();
-    if (q && [m.description, m.customer, m.location, m.machine, m.type, m.next, who(m.by)].join(" ").toLowerCase().indexOf(q) < 0) return false;
+    if (q && [m.problem, m.description, m.customer, m.location, m.machine, m.type, m.next, who(m.by)].join(" ").toLowerCase().indexOf(q) < 0) return false;
     return true;
   }
   function filtered() { return all().filter(function (m) { return matches(m); }); }
@@ -225,9 +225,10 @@
       '<td data-l="Time" class="nw mono">' + esc(time) + (h ? '<div class="sub">' + h + '</div>' : '') + '</td>' +
       '<td data-l="Customer">' + (m.customer ? '<div class="cust">' + esc(m.customer) + '</div>' : dash) + (m.location ? '<div class="sub">' + esc(m.location) + '</div>' : '') + '</td>' +
       '<td data-l="Machine">' + esc(m.machine) + '</td>' +
-      '<td data-l="Action" class="c-action"><div class="desc">' + esc(m.description) + '</div>' + (m.photos.length ? '<div class="sub pcount">📷 ' + m.photos.length + (m.photos.length === 1 ? ' photo' : ' photos') + (function (t) { return t ? ' · ' + fmtSize(t) : ''; })(m.photos.reduce(function (t, p) { return t + photoBytes(p); }, 0)) + '</div>' : '') + '</td>' +
+      '<td data-l="Problem" class="c-problem">' + (m.problem ? '<div class="desc">' + esc(m.problem) + '</div>' : '') + '</td>' +
+      '<td data-l="What was done" class="c-action"><div class="desc">' + esc(m.description) + '</div>' + (m.photos.length ? '<div class="sub pcount">📷 ' + m.photos.length + (m.photos.length === 1 ? ' photo' : ' photos') + (function (t) { return t ? ' · ' + fmtSize(t) : ''; })(m.photos.reduce(function (t, p) { return t + photoBytes(p); }, 0)) + '</div>' : '') + '</td>' +
       '<td data-l="Status"><span class="pill ' + ST_PILL[m.status] + '">' + ST_LABEL[m.status] + '</span></td>' +
-      '<td data-l="Next action" class="c-pc">' + (m.next ? '<span class="note">' + esc(m.next) + '</span>' : '') + '</td></tr>';
+      '<td data-l="Action" class="c-pc">' + (m.next ? '<span class="note">' + esc(m.next) + '</span>' : '') + '</td></tr>';
   }
   function render() {
     var list = all(), b = bounds();
@@ -325,7 +326,7 @@
   $("dlgEdit").addEventListener("click", function (e) { if (e.target.closest("[data-close]") || e.target === this) this.close(); });
 
   // ---------- add / edit ----------
-  var editing = null, MAP = { date: "date", start: "start", end: "end", customer: "customer", location: "location", machine: "machine", type: "type", status: "status", description: "description", next: "next" };
+  var editing = null, MAP = { date: "date", start: "start", end: "end", customer: "customer", location: "location", machine: "machine", type: "type", status: "status", problem: "problem", description: "description", next: "next" };
   // Daily or weekly entry
   var kind = "day";
   function mondayOf(d) { return addDays(d, -((d.getDay() + 6) % 7)); }
@@ -410,8 +411,9 @@
         '<label>Machine<input data-x="machine" list="machList" autocomplete="off" maxlength="200" placeholder="Brand, model, serial"></label>' +
         '<label>Type of activity<input data-x="type" list="typeList" autocomplete="off" maxlength="60" placeholder="Service, Calibration…"></label>' +
         '<label>Status<select data-x="status"><option value="done">Done</option><option value="ongoing">Ongoing</option><option value="pending">Pending</option></select></label>' +
-        '<label class="wide"><span class="req">Action (what was done)</span><textarea data-x="description" rows="3" maxlength="4000"></textarea></label>' +
-        '<label class="wide">Next action<textarea data-x="next" rows="2" maxlength="2000"></textarea></label>' +
+        '<label class="wide">Problem<textarea data-x="problem" rows="2" maxlength="2000"></textarea></label>' +
+        '<label class="wide"><span class="req">What was done</span><textarea data-x="description" rows="3" maxlength="4000"></textarea></label>' +
+        '<label class="wide">Action<textarea data-x="next" rows="2" maxlength="2000"></textarea></label>' +
         '<div class="wide photofield" data-x="photos"></div>' +
       '</fieldset>';
     $("extraActs").appendChild(el); photoField(el.querySelector("[data-x=photos]"), [], true); syncSaveLabel();
@@ -439,6 +441,8 @@
     if (!v("description")) { toast("Write what was done."); return; }
     var row = { report_date: wk ? $("e_week").value : v("date"), start_time: wk ? null : v("start") || null, end_time: wk ? null : v("end") || null, customer: v("customer"), location: v("location"), machine: v("machine"),
                 activity_type: v("type"), status: v("status") || "done", description: v("description"), next_action: v("next") };
+    // Problem is sent only when filled in (or changed), so saving also works before daily.sql is run again
+    if (v("problem") || (editing && editing.problem)) row.problem = v("problem");
     if (wk) row.report_kind = "week";     // daily entries leave it out, so they also work before daily.sql is re-run
     // An admin's choice of engineer; sent only when it is someone else (or changed), so own entries work as before
     var byPick = isAdmin() && $("e_by").value ? $("e_by").value : "";
@@ -451,6 +455,7 @@
         if (!x("description")) { toast("Write what was done for activity " + (i + 2) + ", or remove it."); blocks[i].querySelector("[data-x=description]").focus(); return; }
         var extra = { report_date: row.report_date, start_time: wk ? null : x("start") || null, end_time: wk ? null : x("end") || null, customer: x("customer"), location: x("location"), machine: x("machine"),
                          activity_type: x("type"), status: x("status") || "done", description: x("description"), next_action: x("next") };
+        if (x("problem")) extra.problem = x("problem");
         if (wk) extra.report_kind = "week";
         if (row.created_by) extra.created_by = row.created_by;
         rowsToAdd.push(extra);
@@ -659,8 +664,8 @@
                  margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.3, footer: 0.3 } };
 
     // ----- Sheet 1: the activities -----
-    var HEAD = ["No", "Date", "Day", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Action", "Status", "Next action"];
-    var WID = [5, 16, 6, 18, 7, 7, 7, 24, 16, 18, 26, 52, 11, 32];
+    var HEAD = ["No", "Date", "Day", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Problem", "What was done", "Status", "Action"];
+    var WID = [5, 16, 6, 18, 7, 7, 7, 24, 16, 18, 26, 36, 48, 11, 32];
     var PIC_H = 96, PIC_W = 128, PIC_COL = 3 * (PIC_W + 6) / 7 + 2;          // three photos side by side in the last column
     if (hasPics) { HEAD.push("Photos"); WID.push(Math.ceil(PIC_COL)); }
     var N = HEAD.length, HR = 6, colPx = Math.ceil(PIC_COL) * 7 + 5;
@@ -673,17 +678,17 @@
       r++;
       var h = hours(m); total += h;
       var vals = [i + 1, m.kind === "week" ? weekText(m.date) : xlDate(m.date), m.kind === "week" ? "Week" : parse(m.date).toLocaleDateString("en-GB", { weekday: "short" }), who(m.by), m.start, m.end, h ? Math.round(h * 100) / 100 : null,
-                  m.customer, m.location, m.type, m.machine, m.description, ST_LABEL[m.status], m.next];
+                  m.customer, m.location, m.type, m.machine, m.problem, m.description, ST_LABEL[m.status], m.next];
       var row = ws.getRow(r);
       vals.forEach(function (v, k) {
         var c = row.getCell(k + 1); c.value = (v === "" || v == null) ? null : v;
         c.font = { name: "Calibri", size: 10.5, color: { argb: INK } };
         c.border = box;
-        c.alignment = { vertical: "top", wrapText: true, horizontal: (k <= 2 || (k >= 4 && k <= 6) || k === 12) ? "center" : "left" };
+        c.alignment = { vertical: "top", wrapText: true, horizontal: (k <= 2 || (k >= 4 && k <= 6) || k === 13) ? "center" : "left" };
         if (i % 2 === 1) c.fill = fill(SOFT);
       });
       row.getCell(2).numFmt = "dd mmm yyyy"; row.getCell(7).numFmt = "0.0";
-      var sc = row.getCell(13); sc.fill = fill(ST_FILL[m.status]); sc.font = { name: "Calibri", size: 10.5, bold: true, color: { argb: ST_INK[m.status] } };
+      var sc = row.getCell(14); sc.fill = fill(ST_FILL[m.status]); sc.font = { name: "Calibri", size: 10.5, bold: true, color: { argb: ST_INK[m.status] } };
       if (hasPics) {
         var pc = row.getCell(N); pc.border = box; if (i % 2 === 1) pc.fill = fill(SOFT);
         var x = 4;
@@ -706,7 +711,7 @@
     tr.getCell(8).value = "hours logged";
     // sign-off
     r += 3;
-    [[2, "Prepared by", me], [11, "Approved by", ""]].forEach(function (sg) {
+    [[2, "Prepared by", me], [12, "Approved by", ""]].forEach(function (sg) {
       var c = ws.getCell(r, sg[0]); c.value = sg[1]; c.font = { name: "Calibri", size: 10.5, color: { argb: MUTED } };
       ws.mergeCells(r + 4, sg[0], r + 4, sg[0] + 2);
       var n = ws.getCell(r + 4, sg[0]); n.value = sg[2] || null; n.font = { name: "Calibri", size: 11, bold: true, color: { argb: INK } };
@@ -761,10 +766,10 @@
     });
   }
   function plainExport(rows) {
-    var aoa = [["Date", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Action", "Status", "Next action", "Photos"]];
-    rows.forEach(function (m) { var h = hours(m); aoa.push([m.kind === "week" ? "Week " + m.date + " to " + weekEnd(m) : m.date, who(m.by), m.start, m.end, h ? Math.round(h * 100) / 100 : "", m.customer, m.location, m.type, m.machine, m.description, ST_LABEL[m.status], m.next, (m.photos || []).length || ""]); });
+    var aoa = [["Date", "Engineer", "Start", "End", "Hours", "Customer", "Location", "Type", "Machine", "Problem", "What was done", "Status", "Action", "Photos"]];
+    rows.forEach(function (m) { var h = hours(m); aoa.push([m.kind === "week" ? "Week " + m.date + " to " + weekEnd(m) : m.date, who(m.by), m.start, m.end, h ? Math.round(h * 100) / 100 : "", m.customer, m.location, m.type, m.machine, m.problem, m.description, ST_LABEL[m.status], m.next, (m.photos || []).length || ""]); });
     var ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [11, 18, 7, 7, 7, 24, 18, 20, 28, 60, 10, 36].map(function (w) { return { wch: w }; });
+    ws["!cols"] = [11, 18, 7, 7, 7, 24, 18, 20, 28, 40, 60, 10, 36].map(function (w) { return { wch: w }; });
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Daily report");
     XLSX.writeFile(wb, fileName());
   }

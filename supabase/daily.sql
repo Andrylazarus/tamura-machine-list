@@ -25,6 +25,9 @@ create table if not exists public.daily_reports (
 );
 
 -- Daily entry (one day) or weekly entry (report_date = the Monday of that week). Added later, so also for existing tables.
+-- The problem found (optional), shown before "What was done". Added later, so also for existing tables.
+alter table public.daily_reports add column if not exists problem text not null default '' check (char_length(problem) <= 2000);
+
 alter table public.daily_reports add column if not exists report_kind text not null default 'day' check (report_kind in ('day', 'week'));
 
 create index if not exists daily_reports_date_idx on public.daily_reports (report_date desc);

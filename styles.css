@@ -426,3 +426,10 @@ table.daily .c-action .desc{margin-top:0}
 .pcount{margin-top:4px}
 .pthumb .psize{position:absolute;left:4px;bottom:4px;padding:1px 6px;border-radius:999px;background:rgba(17,26,39,.75);color:#fff;font-size:10.5px;font-weight:600;line-height:1.5}
 .pthumb .psize s{opacity:.65;font-weight:400}
+/* Daily report: Problem column */
+table.daily .c-problem{min-width:200px;max-width:320px}
+table.daily .c-problem .desc{margin-top:0;color:var(--bad)}
+@media (max-width:720px){
+  table.daily tr.row .c-problem{grid-column:1/-1;order:-2}
+  table.daily tr.row .c-problem:empty{display:none}
+}
