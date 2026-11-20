@@ -445,7 +445,7 @@ function src(d){return d||""}
 
 /* ---------- spec checks ---------- */
 function chk(kind,v,flag){const n=num(v);if(n===null)return null;const p=S.spec;
-  if(flag!==undefined&&(kind==="d3"||kind==="d2"))return !flag;
+  if(flag!==undefined&&kind==="d2")return !flag; /* 2D target differs per machine: use the machine's own warning */
   if(kind==="d3")return Math.abs(n-p.d3)<=p.d3t+1e-9;
   if(kind==="d2")return Math.abs(n-p.d2)<=p.d2t+1e-9;
   if(kind==="vis")return n>p.vis;
@@ -464,13 +464,13 @@ const pill=r=>r==="PASS"?`<span class="pill pass">PASS</span>`:r==="FAIL"?`<span
 const cell=(kind,v,flag)=>{const c=chk(kind,v,flag);return`<td class="${c===false?"bad":""}">${v===""||v==null?"–":esc(v)}</td>`};
 function dataTable(t){const p=S.spec;const rows=t.rows.slice(0,S.channels);
   let h=`<table class="dt"><thead><tr><th rowspan="2">CH</th><th>3D Brightness</th><th>2D Brightness</th><th>Visibility / Modulation</th><th colspan="4">PZT Movement</th><th rowspan="2">Result</th></tr>
-  <tr class="spec"><th>${rows.some(r=>r.w3!==undefined)?"Machine limit":`${p.d3} ± ${p.d3t}`}</th><th>${rows.some(r=>r.w2!==undefined)?"Machine limit":`${p.d2} ± ${p.d2t}`}</th><th>&gt; ${p.vis}</th><th colspan="4">${(+p.pztLo).toFixed(1)} – ${(+p.pztHi).toFixed(1)}</th></tr></thead><tbody>`;
+  <tr class="spec"><th>${p.d3} ± ${p.d3t}</th><th>${rows.some(r=>r.w2!==undefined)?"Machine limit":`${p.d2} ± ${p.d2t}`}</th><th>&gt; ${p.vis}</th><th colspan="4">${(+p.pztLo).toFixed(1)} – ${(+p.pztHi).toFixed(1)}</th></tr></thead><tbody>`;
   rows.forEach((r,i)=>{h+=`<tr><td class="ch">${i+1}</td>${cell("d3",r.d3,r.w3)}${cell("d2",r.d2,r.w2)}${cell("vis",r.vis)}${r.pzt.map(v=>cell("pzt",v)).join("")}<td>${pill(rowRes(r))}</td></tr>`});
   h+=`</tbody></table>`;
   if(rows.some(r=>r.w3!==undefined||r.w2!==undefined)){const w=[];
     const g=(k,lab)=>{const by={};rows.forEach((r,i)=>{if(r[k])(by[r[k]]=by[r[k]]||[]).push(i+1)});Object.entries(by).forEach(([msg,chs])=>w.push(`${lab} ${chTxt(chs)}: ${msg}`))};
     g("w3","3D");g("w2","2D");
-    h+=`<div class="note">Brightness judged against the machine's own limits (Brightness Statistics, average of ${t.count||10} runs). ${w.length?"Warnings – "+esc(w.join("; "))+".":"No warnings."}</div>`}
+    h+=`<div class="note">3D brightness judged against ${p.d3} ± ${p.d3t}, 2D brightness against the machine's own limits (Brightness Statistics, average of ${t.count||10} runs). ${w.length?"Machine warnings for reference – "+esc(w.join("; "))+".":"No machine warnings."}</div>`}
   return h}
 function verifyTable(){const V=S.verify,b=V.before,a=V.after,r0=b||a;const n=Math.max(b?b.pos.length:0,a?a.pos.length:0);
   const td=(x,k)=>x&&x.pos[k]?`<td>${esc(x.pos[k].avg)}</td><td>${esc(x.pos[k].sig)}</td><td class="${x.pos[k].ok?"":"bad"}">${esc(x.pos[k].cmk)}</td>`:"<td>–</td><td>–</td><td>–</td>";
