@@ -530,8 +530,11 @@ function blocks(){
     if(sec.layout==="pair"){
       const pr=sec.items.filter(it=>it.a||it.b).every(it=>pairRatio(it.b,it.a)<0.95);
       const cell=(it,i)=>{const fr=pairRatio(it.b,it.a);return`<div class="lab">${i+1}</div>${fig(it.b,`<div class="tag before">Before</div>`,it.cap,"60mm",fr)}${fig(it.a,`<div class="tag after">After</div>`,"","60mm",fr)}`};
-      if(pr){for(let i=0;i<sec.items.length;i+=2){const ch=sec.items.slice(i,i+2);add(`<div class="pairrow2${ch.length===1?" single":""}">${ch.map((it,j)=>cell(it,i+j)).join("")}</div>`)}}
-      else sec.items.forEach((it,i)=>add(`<div class="pairrow${pairRatio(it.b,it.a)>=0.95&&pairRatio(it.b,it.a)<=1.05?" sq":""}">${cell(it,i)}</div>`));
+      /* portrait pairs go two per row, even when some pairs in the section are landscape or square */
+      const its=sec.items.map((it,i)=>({it,i})).filter(x=>x.it.a||x.it.b||sec.items.length===1);const por=x=>pairRatio(x.it.b,x.it.a)<0.95;
+      for(let k=0;k<its.length;){if(por(its[k])&&its[k+1]&&por(its[k+1])){add(`<div class="pairrow2">${cell(its[k].it,its[k].i)}${cell(its[k+1].it,its[k+1].i)}</div>`);k+=2}
+        else if(por(its[k])){add(`<div class="pairrow2 single">${cell(its[k].it,its[k].i)}</div>`);k++}
+        else{const it=its[k].it,fr=pairRatio(it.b,it.a);add(`<div class="pairrow${fr>=0.95&&fr<=1.05?" sq":""}">${cell(it,its[k].i)}</div>`);k++}}
     }else{
       const pr=sec.items.filter(it=>it.a).every(it=>portrait(it.a));const k=pr?3:2;
       for(let i=0;i<sec.items.length;i+=k){add(`<div class="${pr?"figs3":"figs"}">${sec.items.slice(i,i+k).map(it=>fig(it.a,"",it.cap,"70mm")).join("")}</div>`)}
@@ -648,7 +651,7 @@ function buildForm(){
   const ed=document.getElementById("editor");const sc=ed.scrollTop;
   ed.querySelectorAll("details.sec").forEach(d=>{const id=d.id.slice(4);d.open?openSecs.add(id):openSecs.delete(id)});
   const bs=tableStats(S.before),as=tableStats(S.after);
-  ed.innerHTML=`<p class="hint"><b>Import folder</b> fills the report from the machine files (BRIGHT, 3D, HEIGHT .txt, graphs 1–7, CH1…, mirror / probe photos or zips in Before / After, Glass-before / Glass-after or cover-before / cover-after for the AOI probe cover glass, and a DLP folder with dlp.txt and 3D views for DLP machines). The KYCal verification report is read for machine data only and is not added to the report unless you switch it on. Your work saves automatically in this browser. Use <b>Save data</b> to keep a copy of each report, and <b>Print / PDF</b> to export. PASS / FAIL and out-of-spec values are marked automatically.</p>`+
+  ed.innerHTML=`<p class="hint"><b>Import folder</b> fills the report from the machine files (BRIGHT, 3D, HEIGHT .txt, graphs 1–7 (or 1–6 with 6 = 3D view), CH1…, mirror / probe photos or zips in Before / After, Glass-before / Glass-after or cover-before / cover-after for the AOI probe cover glass, and a DLP folder with dlp.txt and 3D views for DLP machines). The KYCal verification report is read for machine data only and is not added to the report unless you switch it on. Your work saves automatically in this browser. Use <b>Save data</b> to keep a copy of each report, and <b>Print / PDF</b> to export. PASS / FAIL and out-of-spec values are marked automatically.</p>`+
   sec("info","Report & visit",`<label class="f">Report style<select id="in-style" data-k="style">${[["a","A · Modern blue"],["b","B · Formal black & white"],["c","C · Tamura red, numbered sections"]].map(([v,l])=>`<option value="${v}" ${(S.style||"a")===v?"selected":""}>${l}</option>`).join("")}</select></label><div class="row"><label class="f">Report No<span class="inline"><input id="in-reportNo" data-k="reportNo" value="${esc(S.reportNo)}" placeholder="026/TTI-AL/IX/26"><button class="btn sm" type="button" id="btn-gen" title="Build number from date">Auto</button></span></label>${inp("date","Report date",{type:"date"})}</div>
     ${inp("subject","Subject")}
     <div class="sub">Call description</div><div class="checks">${CALL_TYPES.map((c,i)=>`<label><input type="checkbox" id="ct-${i}" data-ct="${c}" ${S.callTypes.includes(c)?"checked":""}>${c}</label>`).join("")}</div>
@@ -788,6 +791,7 @@ function pickDlp(dlpTxt,heightTxt,noms){let bl=parseHeightBlocks(dlpTxt);const h
     if(Math.abs(nom-m)>nom*0.1)nom=Math.round(m/100)*100;by.set(nom,b)}
   return[...by.entries()].sort((a,b)=>a[0]-b[0]).map(([n,h])=>({nom:String(n),h:h.slice()}))}
 const GRAPH_FILE={4:0,3:1,5:2,6:3,1:4,2:5};
+const GRAPH_FILE6={3:0,2:1,4:2,5:3,1:4};
 async function expandZips(entries,notes){const out=[];
   for(const e of entries){if(!/\.zip$/i.test(e.path)){out.push(e);continue}
     if(!window.JSZip){notes.push(`${e.path.split("/").at(-1)} skipped (zip reader not available)`);continue}
@@ -829,8 +833,11 @@ async function importEntries(entries){const notes=[];entries=await expandZips(en
     T.dlpImgs.sort((x,y)=>natural(x.rel,y.rel));tg.dlpImgs=[];for(const im of T.dlpImgs){try{tg.dlpImgs.push(await blobToDataURL(im.blob,1400,im.name))}catch(e){(bad[sg]=bad[sg]||[]).push(im.name)}}
     if(!T.bright)notes.push(`${sg}: BRIGHT .txt missing`);if(!T.d3)notes.push(`${sg}: 3D .txt missing`);if(!T.height)notes.push(`${sg}: HEIGHT .txt missing`);
     T.imgs.sort((x,y)=>natural(x.rel,y.rel));
+    /* 7+ numbered screenshots: 1 UR layer, 2 UR channel, 3 2D, 4 3D, 5 PZT, 6 Visibility, 7 3D view.
+       Only 1–6: 1 Uniform ratio, 2 2D, 3 3D, 4 PZT, 5 Visibility, 6 3D view */
+    const nums=T.imgs.map(x=>x.base).filter(b=>/^\d+$/.test(b)).map(Number);const gm=nums.length&&Math.max(...nums)===6?{map:GRAPH_FILE6,view:6}:{map:GRAPH_FILE,view:7};
     for(const im of T.imgs){const lb=im.base.toLowerCase();let url;try{url=await blobToDataURL(im.blob,1400,im.name)}catch(e){(bad[sg]=bad[sg]||[]).push(im.name);continue}
-      if(/^\d+$/.test(lb)){const k=+lb;if(k===7)tg.h3d=url;else if(k in GRAPH_FILE)tg.graphs[GRAPH_FILE[k]]=url}
+      if(/^\d+$/.test(lb)){const k=+lb;if(k===gm.view)tg.h3d=url;else if(k in gm.map)tg.graphs[gm.map[k]]=url}
       else if(/^ch\s*0*(\d+)$/.test(lb)){const k=+lb.match(/(\d+)/)[1]-1;while(N.chShots.length<=k)N.chShots.push({b:"",a:""});N.chShots[k][sg==="before"?"b":"a"]=url}
       else if(/glass|cover/.test(im.rel))glass[sg].push(url);else if(/mirror/.test(im.rel))mirrors[sg].push(url);else if(/probe/.test(im.rel))probes[sg].push(url)}}
   for(const [sg,l] of Object.entries(bad))notes.push(`${sg}: ${l.length} image${l.length>1?"s":""} could not be read (${l.slice(0,3).join(", ")}${l.length>3?", …":""})`);
